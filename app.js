@@ -6,8 +6,8 @@
 // ─── State (1.3) ─────────────────────────────────────────────────────────────
 const STORAGE_KEY = "packcheck_data";
 
-/** @type {{ trips: Array<{id:string, name:string, createdAt:string, items:Array}> }} */
-let state = { trips: [] };
+/** @type {{ trips: Array<{id:string, name:string, createdAt:string, items:Array, typeId?:string|null}>, tripTypes: Array<{id:string, name:string, createdAt:string, presetItems:Array<{id:string,name:string,qty:number}>}> }} */
+let state = { trips: [], tripTypes: [] };
 let storageAvailable = true;
 
 const ICONS = {
@@ -69,6 +69,11 @@ const ICONS = {
       <path d="m10 6-6 6 6 6"></path>
       <path d="M4 12h16"></path>
     </svg>`,
+  settings: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"></circle>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.13.43.45.79.86 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path>
+    </svg>`,
 };
 
 // ─── Persistence (2.1 / 2.2) ─────────────────────────────────────────────────
@@ -93,12 +98,16 @@ function loadState() {
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.trips)) {
         state = parsed;
+        // Legacy payloads predating trip-types: default to [] silently.
+        if (!Array.isArray(state.tripTypes)) {
+          state.tripTypes = [];
+        }
       } else {
         throw new Error("unexpected shape");
       }
     }
   } catch (_) {
-    state = { trips: [] };
+    state = { trips: [], tripTypes: [] };
     showStorageWarning("偵測到損毀的儲存資料，已重設為空白清單。");
   }
 }
@@ -149,6 +158,8 @@ function router() {
 
   if (!hash || hash === "#trips") {
     renderTripList(app);
+  } else if (hash === "#settings") {
+    renderSettings(app);
   } else if (hash.startsWith("#trip/")) {
     const id = hash.slice("#trip/".length);
     renderTripDetail(app, id);
@@ -233,6 +244,9 @@ function renderTripList(app) {
               <p class="section-kicker">My Trips</p>
               <h2>我的旅程</h2>
             </div>
+            <a href="#settings" class="btn-icon btn-icon-settings" aria-label="開啟旅程類型設定">
+              ${icon("settings")}
+            </a>
           </div>
 
           <form id="form-add-trip" class="add-form surface-panel" novalidate>
@@ -245,6 +259,18 @@ function renderTripList(app) {
                 autocomplete="off"
                 maxlength="100"
               />
+            </div>
+            <div class="input-group">
+              <label for="input-trip-type">旅程類型</label>
+              <select id="input-trip-type" class="select-input">
+                <option value="">（無）</option>
+                ${state.tripTypes
+                  .map(
+                    (t) =>
+                      `<option value="${esc(t.id)}">${esc(t.name)}</option>`,
+                  )
+                  .join("")}
+              </select>
             </div>
             <button type="submit" class="btn-primary">
               ${icon("plus")}
@@ -262,8 +288,10 @@ function renderTripList(app) {
   document.getElementById("form-add-trip").addEventListener("submit", (e) => {
     e.preventDefault();
     const nameInput = document.getElementById("input-trip-name");
+    const typeSelect = document.getElementById("input-trip-type");
     const errEl = document.getElementById("trip-error");
     const name = nameInput.value.trim();
+    const typeId = typeSelect ? typeSelect.value : "";
 
     if (!name) {
       errEl.textContent = "請輸入旅程名稱。";
@@ -273,14 +301,34 @@ function renderTripList(app) {
     }
 
     errEl.classList.add("hidden");
+
+    // Deep-copy preset items if a type was selected (one-time copy at creation).
+    let seedItems = [];
+    let resolvedTypeId = null;
+    if (typeId) {
+      const type = state.tripTypes.find((t) => t.id === typeId);
+      if (type) {
+        resolvedTypeId = type.id;
+        seedItems = type.presetItems.map((p) => ({
+          id: genId(),
+          name: p.name,
+          qty: p.qty,
+          departureChecked: false,
+          returnChecked: false,
+        }));
+      }
+    }
+
     state.trips.push({
       id: genId(),
       name,
       createdAt: new Date().toISOString(),
-      items: [],
+      typeId: resolvedTypeId,
+      items: seedItems,
     });
     saveState(); // 2.3
     nameInput.value = "";
+    if (typeSelect) typeSelect.value = "";
     renderTripList(document.getElementById("app"));
   });
 
@@ -586,6 +634,372 @@ function updateRowClass(app, item) {
     "fully-checked",
     item.departureChecked && item.returnChecked,
   );
+}
+
+// ─── Settings View — Trip Type Presets ───────────────────────────────────────
+
+function renderSettings(app) {
+  const { tripTypes } = state;
+
+  let typesContent;
+  if (tripTypes.length === 0) {
+    typesContent = `
+      <div class="empty-state">
+        <div class="empty-icon">${icon("settings")}</div>
+        <h3>還沒有旅程類型</h3>
+        <p>建立一個類型（例如「潛水」「旅遊」），把常用物品加入預設清單，建立新旅程時就能一鍵帶入。</p>
+      </div>`;
+  } else {
+    typesContent = `
+      <div class="trip-type-list" role="list">
+        ${tripTypes.map((type) => buildTripTypeCard(type)).join("")}
+      </div>`;
+  }
+
+  app.innerHTML = `
+    <div class="page-shell">
+      <header class="app-header">
+        <div class="brand-lockup">
+          <div class="brand-mark">${icon("brand")}</div>
+          <div>
+            <p class="eyebrow">Travel Packing Companion</p>
+            <h1>PackCheck</h1>
+          </div>
+        </div>
+        <div class="header-chip">旅遊行李檢查</div>
+      </header>
+      <main class="page-main view-settings">
+        <section class="content-panel">
+          <div class="view-header">
+            <div>
+              <a href="#trips" class="btn-back">${icon("back")}返回旅程</a>
+              <p class="section-kicker">Settings</p>
+              <h2>旅程類型設定</h2>
+            </div>
+          </div>
+
+          <p class="settings-hint">套用為預設項目，不會回頭修改既有旅程。</p>
+
+          <form id="form-add-trip-type" class="add-form surface-panel" novalidate>
+            <div class="input-group">
+              <label for="input-trip-type-name">類型名稱</label>
+              <input
+                type="text"
+                id="input-trip-type-name"
+                placeholder="輸入類型名稱（例如：潛水）"
+                autocomplete="off"
+                maxlength="100"
+              />
+            </div>
+            <button type="submit" class="btn-primary">
+              ${icon("plus")}
+              <span>新增類型</span>
+            </button>
+          </form>
+          <div id="trip-type-error" class="field-error hidden" role="alert"></div>
+
+          ${typesContent}
+        </section>
+      </main>
+    </div>`;
+
+  bindSettingsActions(app);
+}
+
+function buildTripTypeCard(type) {
+  let presetContent;
+  if (type.presetItems.length === 0) {
+    presetContent = `
+      <div class="empty-state empty-state-inline preset-empty">
+        <p>還沒有預設物品，下方加入第一項。</p>
+      </div>`;
+  } else {
+    const rows = type.presetItems
+      .map((p) => buildPresetRow(type.id, p))
+      .join("");
+    presetContent = `
+      <div class="item-table-wrap preset-table-wrap">
+        <table class="item-table preset-table" aria-label="預設物品清單">
+          <thead>
+            <tr>
+              <th class="col-name">物品</th>
+              <th class="col-qty">數量</th>
+              <th class="col-actions"></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  return `
+    <div class="trip-type-card surface-panel" data-type-id="${esc(type.id)}" role="listitem">
+      <div class="trip-type-header">
+        <div class="trip-type-name-wrap">
+          <span class="trip-tag">Trip Type</span>
+          <span class="trip-type-name">${esc(type.name)}</span>
+        </div>
+        <div class="action-group">
+          <button class="btn-icon btn-icon-edit js-edit-type" data-id="${esc(type.id)}" aria-label="編輯類型 ${esc(type.name)}">
+            ${icon("edit")}
+          </button>
+          <button class="btn-icon btn-icon-danger js-delete-type" data-id="${esc(type.id)}" aria-label="刪除類型 ${esc(type.name)}">
+            ${icon("trash")}
+          </button>
+        </div>
+      </div>
+
+      <form class="add-form surface-panel preset-add-form js-add-preset-form" data-type-id="${esc(type.id)}" novalidate>
+        <div class="input-group input-group-wide">
+          <label for="input-preset-name-${esc(type.id)}">預設物品名稱</label>
+          <input
+            type="text"
+            id="input-preset-name-${esc(type.id)}"
+            class="js-preset-name-input"
+            placeholder="物品名稱（例如：護照）"
+            autocomplete="off"
+            maxlength="100"
+          />
+        </div>
+        <div class="input-group input-group-compact">
+          <label for="input-preset-qty-${esc(type.id)}">數量</label>
+          <input
+            type="number"
+            id="input-preset-qty-${esc(type.id)}"
+            class="js-preset-qty-input"
+            placeholder="數量"
+            min="1"
+            value="1"
+          />
+        </div>
+        <button type="submit" class="btn-primary">
+          ${icon("plus")}
+          <span>新增物品</span>
+        </button>
+      </form>
+      <div class="field-error hidden js-preset-error" data-type-id="${esc(type.id)}" role="alert"></div>
+
+      ${presetContent}
+    </div>`;
+}
+
+function buildPresetRow(typeId, preset) {
+  return `
+    <tr class="item-row preset-row" data-type-id="${esc(typeId)}" data-id="${esc(preset.id)}">
+      <td class="col-name item-name">
+        <div class="item-primary">
+          <span class="item-field-label">物品</span>
+          <div class="table-item-name">${esc(preset.name)}</div>
+        </div>
+      </td>
+      <td class="col-qty item-qty">
+        <div class="item-qty-block">
+          <span class="item-field-label">數量</span>
+          <span class="item-qty-value">${preset.qty}</span>
+        </div>
+      </td>
+      <td class="col-actions">
+        <div class="action-group">
+          <button class="btn-icon btn-icon-edit js-edit-preset" data-type-id="${esc(typeId)}" data-id="${esc(preset.id)}" aria-label="編輯 ${esc(preset.name)}">
+            ${icon("edit")}
+            <span class="btn-icon-text">編輯</span>
+          </button>
+          <button class="btn-icon btn-icon-danger js-delete-preset" data-type-id="${esc(typeId)}" data-id="${esc(preset.id)}" aria-label="刪除 ${esc(preset.name)}">
+            ${icon("trash")}
+            <span class="btn-icon-text">刪除</span>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+}
+
+function bindSettingsActions(app) {
+  const rerender = () => renderSettings(document.getElementById("app"));
+
+  // Add a new trip type
+  document
+    .getElementById("form-add-trip-type")
+    .addEventListener("submit", (e) => {
+      e.preventDefault();
+      const input = document.getElementById("input-trip-type-name");
+      const errEl = document.getElementById("trip-type-error");
+      const name = input.value.trim();
+      if (!name) {
+        errEl.textContent = "請輸入類型名稱。";
+        errEl.classList.remove("hidden");
+        input.focus();
+        return;
+      }
+      errEl.classList.add("hidden");
+      state.tripTypes.push({
+        id: genId(),
+        name,
+        createdAt: new Date().toISOString(),
+        presetItems: [],
+      });
+      saveState();
+      input.value = "";
+      rerender();
+    });
+
+  // Edit trip-type name (inline)
+  app.querySelectorAll(".js-edit-type").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const typeId = btn.dataset.id;
+      const type = state.tripTypes.find((t) => t.id === typeId);
+      if (!type) return;
+      const card = app.querySelector(
+        `.trip-type-card[data-type-id="${esc(typeId)}"]`,
+      );
+      if (!card) return;
+      const header = card.querySelector(".trip-type-header");
+      header.innerHTML = `
+        <div class="trip-type-name-wrap">
+          <span class="trip-tag">Trip Type</span>
+          <input type="text" class="edit-name-input js-edit-type-input" value="${esc(type.name)}" maxlength="100" aria-label="類型名稱" />
+        </div>
+        <div class="action-group edit-actions-cell">
+          <button class="btn-icon btn-icon-save js-save-type" aria-label="儲存類型 ${esc(type.name)}">
+            ${icon("check")}
+          </button>
+          <button class="btn-icon btn-icon-cancel js-cancel-type" aria-label="取消編輯類型 ${esc(type.name)}">
+            ${icon("x")}
+          </button>
+        </div>`;
+      const input = header.querySelector(".js-edit-type-input");
+      input.focus();
+      input.select();
+      header.querySelector(".js-save-type").addEventListener("click", () => {
+        const newName = input.value.trim();
+        if (!newName) return;
+        type.name = newName;
+        saveState();
+        rerender();
+      });
+      header
+        .querySelector(".js-cancel-type")
+        .addEventListener("click", rerender);
+    });
+  });
+
+  // Delete trip type
+  app.querySelectorAll(".js-delete-type").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const typeId = btn.dataset.id;
+      const type = state.tripTypes.find((t) => t.id === typeId);
+      if (!type) return;
+      if (
+        !confirm(
+          `確定要刪除類型「${type.name}」？\n既有旅程不會受影響，但下次新增旅程將無此選項。`,
+        )
+      )
+        return;
+      state.tripTypes = state.tripTypes.filter((t) => t.id !== typeId);
+      saveState();
+      rerender();
+    });
+  });
+
+  // Add preset item to a type
+  app.querySelectorAll(".js-add-preset-form").forEach((form) => {
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const typeId = form.dataset.typeId;
+      const type = state.tripTypes.find((t) => t.id === typeId);
+      if (!type) return;
+      const nameInput = form.querySelector(".js-preset-name-input");
+      const qtyInput = form.querySelector(".js-preset-qty-input");
+      const errEl = app.querySelector(
+        `.js-preset-error[data-type-id="${esc(typeId)}"]`,
+      );
+      const name = nameInput.value.trim();
+      const qty = parseInt(qtyInput.value, 10);
+      if (!name) {
+        errEl.textContent = "請輸入物品名稱。";
+        errEl.classList.remove("hidden");
+        nameInput.focus();
+        return;
+      }
+      if (!Number.isInteger(qty) || qty < 1) {
+        errEl.textContent = "數量必須是正整數（≥ 1）。";
+        errEl.classList.remove("hidden");
+        qtyInput.focus();
+        return;
+      }
+      errEl.classList.add("hidden");
+      type.presetItems.push({ id: genId(), name, qty });
+      saveState();
+      rerender();
+    });
+  });
+
+  // Delete preset item
+  app.querySelectorAll(".js-delete-preset").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const typeId = btn.dataset.typeId;
+      const presetId = btn.dataset.id;
+      const type = state.tripTypes.find((t) => t.id === typeId);
+      if (!type) return;
+      const preset = type.presetItems.find((p) => p.id === presetId);
+      if (!preset) return;
+      if (!confirm(`確定要刪除預設物品「${preset.name}」？`)) return;
+      type.presetItems = type.presetItems.filter((p) => p.id !== presetId);
+      saveState();
+      rerender();
+    });
+  });
+
+  // Inline-edit preset item (mirrors item-row edit pattern)
+  app.querySelectorAll(".js-edit-preset").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const typeId = btn.dataset.typeId;
+      const presetId = btn.dataset.id;
+      const type = state.tripTypes.find((t) => t.id === typeId);
+      if (!type) return;
+      const preset = type.presetItems.find((p) => p.id === presetId);
+      if (!preset) return;
+      const row = app.querySelector(
+        `.preset-row[data-type-id="${esc(typeId)}"][data-id="${esc(presetId)}"]`,
+      );
+      if (!row) return;
+      row.classList.add("is-editing");
+      row.innerHTML = `
+        <td class="col-name">
+          <input type="text" class="edit-name-input" value="${esc(preset.name)}" maxlength="100" aria-label="物品名稱" />
+        </td>
+        <td class="col-qty">
+          <input type="number" class="edit-qty-input" value="${preset.qty}" min="1" aria-label="數量" />
+        </td>
+        <td class="col-actions edit-actions-cell">
+          <button class="btn-icon btn-icon-save js-save-preset-edit" aria-label="儲存 ${esc(preset.name)}">
+            ${icon("check")}
+          </button>
+          <button class="btn-icon btn-icon-cancel js-cancel-preset-edit" aria-label="取消編輯 ${esc(preset.name)}">
+            ${icon("x")}
+          </button>
+        </td>`;
+      const nameInput = row.querySelector(".edit-name-input");
+      nameInput.focus();
+      nameInput.select();
+      row
+        .querySelector(".js-save-preset-edit")
+        .addEventListener("click", () => {
+          const newName = row.querySelector(".edit-name-input").value.trim();
+          const newQty = parseInt(
+            row.querySelector(".edit-qty-input").value,
+            10,
+          );
+          if (!newName || !Number.isInteger(newQty) || newQty < 1) return;
+          preset.name = newName;
+          preset.qty = newQty;
+          saveState();
+          rerender();
+        });
+      row
+        .querySelector(".js-cancel-preset-edit")
+        .addEventListener("click", rerender);
+    });
+  });
 }
 
 // ─── Init (1.3) ───────────────────────────────────────────────────────────────
