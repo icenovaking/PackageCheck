@@ -52,6 +52,14 @@ const ICONS = {
       <path d="m4 16.25 8.75-8.75 3.75 3.75L7.75 20H4v-3.75Z"></path>
       <path d="m12 8.25 2-2a1.75 1.75 0 0 1 2.5 0l1.25 1.25a1.75 1.75 0 0 1 0 2.5l-2 2"></path>
     </svg>`,
+  check: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m5 12.5 4.25 4.25L19 7"></path>
+    </svg>`,
+  x: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
+      <path d="M6 6l12 12M18 6 6 18"></path>
+    </svg>`,
   plus: `
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
       <path d="M12 5v14M5 12h14"></path>
@@ -529,21 +537,21 @@ function bindItemActions(app, trip, tripId) {
       row.classList.add("is-editing");
 
       row.innerHTML = `
-        <td class="col-name" colspan="2">
-          <div class="edit-field">
-            <span class="item-field-label">物品</span>
-            <input type="text" class="edit-name-input" value="${esc(item.name)}" maxlength="100" />
-          </div>
+        <td class="col-name">
+          <input type="text" class="edit-name-input" value="${esc(item.name)}" maxlength="100" aria-label="物品名稱" />
         </td>
         <td class="col-qty">
-          <div class="edit-field">
-            <span class="item-field-label">數量</span>
-            <input type="number" class="edit-qty-input" value="${item.qty}" min="1" />
-          </div>
+          <input type="number" class="edit-qty-input" value="${item.qty}" min="1" aria-label="數量" />
         </td>
-        <td class="col-actions edit-actions-cell" colspan="2">
-          <button class="btn-primary btn-sm js-save-edit">儲存</button>
-          <button class="btn-secondary btn-sm js-cancel-edit">取消</button>
+        <td class="col-check edit-placeholder" aria-hidden="true"></td>
+        <td class="col-check edit-placeholder" aria-hidden="true"></td>
+        <td class="col-actions edit-actions-cell">
+          <button class="btn-icon btn-icon-save js-save-edit" aria-label="儲存 ${esc(item.name)}">
+            ${icon("check")}
+          </button>
+          <button class="btn-icon btn-icon-cancel js-cancel-edit" aria-label="取消編輯 ${esc(item.name)}">
+            ${icon("x")}
+          </button>
         </td>`;
 
       const nameInput = row.querySelector(".edit-name-input");

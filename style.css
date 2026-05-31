@@ -508,6 +508,14 @@ a {
   color: var(--sea-deep);
 }
 
+.btn-icon-save {
+  color: var(--sea);
+}
+
+.btn-icon-cancel {
+  color: var(--text-muted);
+}
+
 .btn-sm {
   min-height: 2.55rem;
   padding: 0.7rem 1rem;
@@ -823,9 +831,25 @@ a {
 
 .edit-actions-cell {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
   gap: 0.55rem;
+}
+
+.item-row .edit-name-input,
+.item-row .edit-qty-input {
+  min-height: 2.55rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.9rem;
+  font-size: 0.95rem;
+}
+
+.item-row .edit-qty-input {
+  text-align: center;
+}
+
+.edit-placeholder {
+  color: transparent;
 }
 
 @media (max-width: 768px) {
@@ -1118,6 +1142,26 @@ a {
     padding: 0;
   }
 
+  .edit-actions-cell {
+    flex-wrap: nowrap;
+    gap: 0.18rem;
+  }
+
+  .edit-actions-cell .btn-icon {
+    width: 1.65rem;
+    height: 1.65rem;
+    min-height: 0;
+    padding: 0;
+  }
+
+  .item-row .edit-name-input,
+  .item-row .edit-qty-input {
+    min-height: 2rem;
+    padding: 0.42rem 0.45rem;
+    border-radius: 0.75rem;
+    font-size: 0.78rem;
+  }
+
   .action-group .btn-icon .icon {
     width: 0.82rem;
     height: 0.82rem;
@@ -1183,9 +1227,30 @@ a {
     height: 1.55rem;
   }
 
+  .edit-actions-cell {
+    gap: 0.12rem;
+  }
+
+  .edit-actions-cell .btn-icon {
+    width: 1.55rem;
+    height: 1.55rem;
+  }
+
   .action-group .btn-icon .icon {
     width: 0.72rem;
     height: 0.72rem;
+  }
+
+  .edit-actions-cell .btn-icon .icon {
+    width: 0.72rem;
+    height: 0.72rem;
+  }
+
+  .item-row .edit-name-input,
+  .item-row .edit-qty-input {
+    min-height: 1.8rem;
+    padding: 0.35rem 0.35rem;
+    font-size: 0.72rem;
   }
 }
 
