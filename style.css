@@ -1061,16 +1061,16 @@ a {
     text-align: left;
   }
 
-  .item-table td.col-qty {
-    width: 16%;
+  .col-qty {
+    width: 12%;
   }
 
   .col-check {
-    width: 18%;
+    width: 16%;
   }
 
   .col-actions {
-    width: 18%;
+    width: 22%;
   }
 
   .table-item-name {
@@ -1106,12 +1106,14 @@ a {
 
   .action-group {
     display: inline-flex;
-    gap: 0.28rem;
+    justify-content: center;
+    width: 100%;
+    gap: 0.18rem;
   }
 
   .action-group .btn-icon {
-    width: 1.9rem;
-    height: 1.9rem;
+    width: 1.65rem;
+    height: 1.65rem;
     min-height: 0;
     padding: 0;
   }
@@ -1145,16 +1147,16 @@ a {
     font-size: 0.52rem;
   }
 
-  .item-table td.col-qty {
-    width: 14%;
+  .col-qty {
+    width: 11%;
   }
 
   .col-check {
-    width: 17%;
+    width: 15%;
   }
 
   .col-actions {
-    width: 16%;
+    width: 24%;
   }
 
   .table-item-name,
@@ -1173,17 +1175,17 @@ a {
   }
 
   .action-group {
-    gap: 0.22rem;
+    gap: 0.12rem;
   }
 
   .action-group .btn-icon {
-    width: 1.72rem;
-    height: 1.72rem;
+    width: 1.55rem;
+    height: 1.55rem;
   }
 
   .action-group .btn-icon .icon {
-    width: 0.76rem;
-    height: 0.76rem;
+    width: 0.72rem;
+    height: 0.72rem;
   }
 }
 
