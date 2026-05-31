@@ -10,6 +10,59 @@ const STORAGE_KEY = "packcheck_data";
 let state = { trips: [] };
 let storageAvailable = true;
 
+const ICONS = {
+  brand: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="8.25"></circle>
+      <path d="M12 7.25 15 12l-3 4.75L9 12l3-4.75Z"></path>
+      <path d="M12 3.75v3M20.25 12h-3M12 20.25v-3M3.75 12h3"></path>
+    </svg>`,
+  suitcase: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="5" y="7" width="14" height="12" rx="2.5"></rect>
+      <path d="M9 7V5.75A1.75 1.75 0 0 1 10.75 4h2.5A1.75 1.75 0 0 1 15 5.75V7"></path>
+      <path d="M12 10.5v5"></path>
+    </svg>`,
+  route: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="6" cy="17" r="2"></circle>
+      <circle cx="18" cy="7" r="2"></circle>
+      <path d="M8 16c2.5-.25 4.25-1.1 5.25-2.5 1-1.4 1.75-2.55 2.75-4.5"></path>
+      <path d="m14.5 6.5 1.5-2 2 1.5"></path>
+    </svg>`,
+  departure: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 18h18"></path>
+      <path d="m6 15 11-6 1.75 1.75-5.5 4.25 2.25 1.5-1.25 1.25-3-1-1.5 2H8l.75-2.5L6 15Z"></path>
+    </svg>`,
+  arrival: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 18h18"></path>
+      <path d="m6 10.5 2 1 7.75-3.5 1.75 1.75L13 13.5l1.5 2-1.25 1.25-2-1.25L9.5 18H8l.5-3L6 13.5v-3Z"></path>
+    </svg>`,
+  trash: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 7h16"></path>
+      <path d="M9 7V5.75A1.75 1.75 0 0 1 10.75 4h2.5A1.75 1.75 0 0 1 15 5.75V7"></path>
+      <path d="M7.5 7 8.25 19A2 2 0 0 0 10.24 21h3.52a2 2 0 0 0 1.99-2L16.5 7"></path>
+      <path d="M10 11v5M14 11v5"></path>
+    </svg>`,
+  edit: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m4 16.25 8.75-8.75 3.75 3.75L7.75 20H4v-3.75Z"></path>
+      <path d="m12 8.25 2-2a1.75 1.75 0 0 1 2.5 0l1.25 1.25a1.75 1.75 0 0 1 0 2.5l-2 2"></path>
+    </svg>`,
+  plus: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M12 5v14M5 12h14"></path>
+    </svg>`,
+  back: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m10 6-6 6 6 6"></path>
+      <path d="M4 12h16"></path>
+    </svg>`,
+};
+
 // ─── Persistence (2.1 / 2.2) ─────────────────────────────────────────────────
 
 function loadState() {
@@ -76,6 +129,10 @@ function esc(str) {
     .replace(/'/g, "&#39;");
 }
 
+function icon(name) {
+  return `<span class="icon icon-${name}" aria-hidden="true">${ICONS[name] || ""}</span>`;
+}
+
 // ─── Router (3.1 / 3.2 / 3.3) ────────────────────────────────────────────────
 
 function router() {
@@ -100,14 +157,25 @@ window.addEventListener("hashchange", router);
 
 function renderTripList(app) {
   const { trips } = state;
+  const totalItems = trips.reduce((sum, trip) => sum + trip.items.length, 0);
+  const totalDeparture = trips.reduce(
+    (sum, trip) =>
+      sum + trip.items.filter((item) => item.departureChecked).length,
+    0,
+  );
+  const totalReturn = trips.reduce(
+    (sum, trip) => sum + trip.items.filter((item) => item.returnChecked).length,
+    0,
+  );
 
-  // Build trip cards or empty state (8.3 summary line, 7.9 emoji)
+  // Build trip cards or empty state
   let tripsContent;
   if (trips.length === 0) {
     tripsContent = `
       <div class="empty-state">
-        <span class="empty-icon">🗺️</span>
-        <p>還沒有旅程，趕快建立第一個吧！</p>
+        <div class="empty-icon">${icon("route")}</div>
+        <h3>還沒有旅程</h3>
+        <p>先建立一個目的地，接著把每件必帶行李整理成清楚的出發與回程清單。</p>
       </div>`;
   } else {
     tripsContent = trips
@@ -115,48 +183,72 @@ function renderTripList(app) {
         const total = trip.items.length;
         const dep = trip.items.filter((i) => i.departureChecked).length;
         const ret = trip.items.filter((i) => i.returnChecked).length;
-        // 8.3 – summary line per trip
-        const summary =
-          total === 0
-            ? "尚無物品"
-            : `共 ${total} 件・✈️ 出發 ${dep}/${total}・🏠 回國 ${ret}/${total}`;
+        const progressSummary =
+          total === 0 ? "尚未建立任何行李項目" : `${total} 件物品已加入清單`;
         return `
           <div class="trip-card" role="listitem">
-            <div class="trip-card-stripe"></div>
             <a href="#trip/${esc(trip.id)}" class="trip-card-body" aria-label="前往旅程：${esc(trip.name)}">
+              <div class="trip-card-top">
+                <span class="trip-tag">Trip Plan</span>
+                <span class="trip-summary">${progressSummary}</span>
+              </div>
               <span class="trip-name">${esc(trip.name)}</span>
-              <span class="trip-summary">${summary}</span>
+              <div class="trip-progress">
+                <span class="progress-pill progress-pill-departure">${icon("departure")}出發 ${dep}/${total}</span>
+                <span class="progress-pill progress-pill-return">${icon("arrival")}回程 ${ret}/${total}</span>
+              </div>
             </a>
-            <button class="btn-icon btn-icon-danger js-delete-trip" data-id="${esc(trip.id)}" aria-label="刪除旅程 ${esc(trip.name)}">🗑️</button>
+            <button class="btn-icon btn-icon-danger js-delete-trip" data-id="${esc(trip.id)}" aria-label="刪除旅程 ${esc(trip.name)}">
+              ${icon("trash")}
+            </button>
           </div>`;
       })
       .join("");
   }
 
   app.innerHTML = `
-    <header class="app-header">
-      <span class="header-icon">✈️</span>
-      <h1>PackCheck</h1>
-    </header>
-    <main class="view-trips">
-      <div class="view-header">
-        <h2>我的旅程</h2>
-      </div>
+    <div class="page-shell">
+      <header class="app-header">
+        <div class="brand-lockup">
+          <div class="brand-mark">${icon("brand")}</div>
+          <div>
+            <p class="eyebrow">Travel Packing Companion</p>
+            <h1>PackCheck</h1>
+          </div>
+        </div>
+        <div class="header-chip">旅遊行李檢查</div>
+      </header>
+      <main class="page-main view-trips">
+        <section class="content-panel">
+          <div class="view-header">
+            <div>
+              <p class="section-kicker">My Trips</p>
+              <h2>我的旅程</h2>
+            </div>
+          </div>
 
-      <form id="form-add-trip" class="add-form" novalidate>
-        <input
-          type="text"
-          id="input-trip-name"
-          placeholder="輸入旅程名稱（例如：日本 2026）"
-          autocomplete="off"
-          maxlength="100"
-        />
-        <button type="submit" class="btn-primary">＋ 新增旅程</button>
-      </form>
-      <div id="trip-error" class="field-error hidden" role="alert"></div>
+          <form id="form-add-trip" class="add-form surface-panel" novalidate>
+            <div class="input-group">
+              <label for="input-trip-name">旅程名稱</label>
+              <input
+                type="text"
+                id="input-trip-name"
+                placeholder="輸入旅程名稱（例如：日本 2026）"
+                autocomplete="off"
+                maxlength="100"
+              />
+            </div>
+            <button type="submit" class="btn-primary">
+              ${icon("plus")}
+              <span>新增旅程</span>
+            </button>
+          </form>
+          <div id="trip-error" class="field-error hidden" role="alert"></div>
 
-      <div class="trip-list" role="list">${tripsContent}</div>
-    </main>`;
+          <div class="trip-list" role="list">${tripsContent}</div>
+        </section>
+      </main>
+    </div>`;
 
   // Bind: add trip (4.2)
   document.getElementById("form-add-trip").addEventListener("submit", (e) => {
@@ -212,10 +304,21 @@ function renderTripDetail(app, tripId) {
     return;
   }
 
+  const totalItems = trip.items.length;
+  const departureCount = trip.items.filter(
+    (item) => item.departureChecked,
+  ).length;
+  const returnCount = trip.items.filter((item) => item.returnChecked).length;
+
   // Build items table or empty state
   let itemsContent;
   if (trip.items.length === 0) {
-    itemsContent = `<p class="empty-items">還沒有物品，新增你的第一件行李吧！🧳</p>`;
+    itemsContent = `
+      <div class="empty-state empty-state-inline">
+        <div class="empty-icon">${icon("suitcase")}</div>
+        <h3>還沒有物品</h3>
+        <p>把護照、充電器、衣物或回程伴手禮需求都先列進來，之後勾選會更快。</p>
+      </div>`;
   } else {
     const rows = trip.items.map((item) => buildItemRow(item)).join("");
     itemsContent = `
@@ -225,8 +328,8 @@ function renderTripDetail(app, tripId) {
             <tr>
               <th class="col-name">物品</th>
               <th class="col-qty">數量</th>
-              <th class="col-check">✈️ 出發</th>
-              <th class="col-check">🏠 回國</th>
+              <th class="col-check">出發確認</th>
+              <th class="col-check">回程確認</th>
               <th class="col-actions"></th>
             </tr>
           </thead>
@@ -236,37 +339,59 @@ function renderTripDetail(app, tripId) {
   }
 
   app.innerHTML = `
-    <header class="app-header">
-      <span class="header-icon">✈️</span>
-      <h1>PackCheck</h1>
-    </header>
-    <main class="view-detail">
-      <div class="view-header">
-        <a href="#trips" class="btn-back">← 返回旅程</a>
-        <h2>${esc(trip.name)}</h2>
-      </div>
+    <div class="page-shell">
+      <header class="app-header">
+        <div class="brand-lockup">
+          <div class="brand-mark">${icon("brand")}</div>
+          <div>
+            <p class="eyebrow">Travel Packing Companion</p>
+            <h1>PackCheck</h1>
+          </div>
+        </div>
+        <div class="header-chip">旅遊行李檢查</div>
+      </header>
+      <main class="page-main view-detail">
+        <section class="content-panel">
+          <div class="view-header">
+            <div>
+              <a href="#trips" class="btn-back">${icon("back")}返回旅程</a>
+              <p class="section-kicker">Packing Manifest</p>
+              <h2>${esc(trip.name)}</h2>
+            </div>
+          </div>
 
-      <form id="form-add-item" class="add-form" novalidate>
-        <input
-          type="text"
-          id="input-item-name"
-          placeholder="物品名稱（例如：護照）"
-          autocomplete="off"
-          maxlength="100"
-        />
-        <input
-          type="number"
-          id="input-item-qty"
-          placeholder="數量"
-          min="1"
-          value="1"
-        />
-        <button type="submit" class="btn-primary">＋ 新增物品</button>
-      </form>
-      <div id="item-error" class="field-error hidden" role="alert"></div>
+          <form id="form-add-item" class="add-form surface-panel" novalidate>
+            <div class="input-group input-group-wide">
+              <label for="input-item-name">物品名稱</label>
+              <input
+                type="text"
+                id="input-item-name"
+                placeholder="物品名稱（例如：護照）"
+                autocomplete="off"
+                maxlength="100"
+              />
+            </div>
+            <div class="input-group input-group-compact">
+              <label for="input-item-qty">數量</label>
+              <input
+                type="number"
+                id="input-item-qty"
+                placeholder="數量"
+                min="1"
+                value="1"
+              />
+            </div>
+            <button type="submit" class="btn-primary">
+              ${icon("plus")}
+              <span>新增物品</span>
+            </button>
+          </form>
+          <div id="item-error" class="field-error hidden" role="alert"></div>
 
-      <div class="item-list">${itemsContent}</div>
-    </main>`;
+          <div class="item-list">${itemsContent}</div>
+        </section>
+      </main>
+    </div>`;
 
   // Bind: add item (5.2)
   document.getElementById("form-add-item").addEventListener("submit", (e) => {
@@ -313,7 +438,9 @@ function buildItemRow(item) {
   const fullyChecked = item.departureChecked && item.returnChecked;
   return `
     <tr class="item-row${fullyChecked ? " fully-checked" : ""}" data-id="${esc(item.id)}">
-      <td class="col-name item-name">${esc(item.name)}</td>
+      <td class="col-name item-name">
+        <div class="table-item-name">${esc(item.name)}</div>
+      </td>
       <td class="col-qty item-qty">${item.qty}</td>
       <td class="col-check">
         <label class="checkbox-wrap" aria-label="出發確認：${esc(item.name)}">
@@ -328,8 +455,14 @@ function buildItemRow(item) {
         </label>
       </td>
       <td class="col-actions">
-        <button class="btn-icon btn-icon-edit js-edit-item" data-id="${esc(item.id)}" aria-label="編輯 ${esc(item.name)}">✏️</button>
-        <button class="btn-icon btn-icon-danger js-delete-item" data-id="${esc(item.id)}" aria-label="刪除 ${esc(item.name)}">🗑️</button>
+        <div class="action-group">
+          <button class="btn-icon btn-icon-edit js-edit-item" data-id="${esc(item.id)}" aria-label="編輯 ${esc(item.name)}">
+            ${icon("edit")}
+          </button>
+          <button class="btn-icon btn-icon-danger js-delete-item" data-id="${esc(item.id)}" aria-label="刪除 ${esc(item.name)}">
+            ${icon("trash")}
+          </button>
+        </div>
       </td>
     </tr>`;
 }
