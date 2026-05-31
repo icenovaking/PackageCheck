@@ -438,29 +438,45 @@ function buildItemRow(item) {
   const fullyChecked = item.departureChecked && item.returnChecked;
   return `
     <tr class="item-row${fullyChecked ? " fully-checked" : ""}" data-id="${esc(item.id)}">
-      <td class="col-name item-name" data-label="物品">
-        <div class="table-item-name">${esc(item.name)}</div>
+      <td class="col-name item-name">
+        <div class="item-primary">
+          <span class="item-field-label">物品</span>
+          <div class="table-item-name">${esc(item.name)}</div>
+        </div>
       </td>
-      <td class="col-qty item-qty" data-label="數量">${item.qty}</td>
-      <td class="col-check" data-label="出發確認">
-        <label class="checkbox-wrap" aria-label="出發確認：${esc(item.name)}">
-          <input type="checkbox" class="js-cb-dep" data-id="${esc(item.id)}"${item.departureChecked ? " checked" : ""} />
-          <span class="checkbox-custom"></span>
-        </label>
+      <td class="col-qty item-qty">
+        <div class="item-qty-block">
+          <span class="item-field-label">數量</span>
+          <span class="item-qty-value">${item.qty}</span>
+        </div>
       </td>
-      <td class="col-check" data-label="回程確認">
-        <label class="checkbox-wrap" aria-label="回國確認：${esc(item.name)}">
-          <input type="checkbox" class="js-cb-ret" data-id="${esc(item.id)}"${item.returnChecked ? " checked" : ""} />
-          <span class="checkbox-custom"></span>
-        </label>
+      <td class="col-check col-check-departure">
+        <div class="status-card">
+          <span class="item-field-label">出發確認</span>
+          <label class="checkbox-wrap" aria-label="出發確認：${esc(item.name)}">
+            <input type="checkbox" class="js-cb-dep" data-id="${esc(item.id)}"${item.departureChecked ? " checked" : ""} />
+            <span class="checkbox-custom"></span>
+          </label>
+        </div>
       </td>
-      <td class="col-actions" data-label="操作">
+      <td class="col-check col-check-return">
+        <div class="status-card">
+          <span class="item-field-label">回程確認</span>
+          <label class="checkbox-wrap" aria-label="回國確認：${esc(item.name)}">
+            <input type="checkbox" class="js-cb-ret" data-id="${esc(item.id)}"${item.returnChecked ? " checked" : ""} />
+            <span class="checkbox-custom"></span>
+          </label>
+        </div>
+      </td>
+      <td class="col-actions">
         <div class="action-group">
           <button class="btn-icon btn-icon-edit js-edit-item" data-id="${esc(item.id)}" aria-label="編輯 ${esc(item.name)}">
             ${icon("edit")}
+            <span class="btn-icon-text">編輯</span>
           </button>
           <button class="btn-icon btn-icon-danger js-delete-item" data-id="${esc(item.id)}" aria-label="刪除 ${esc(item.name)}">
             ${icon("trash")}
+            <span class="btn-icon-text">刪除</span>
           </button>
         </div>
       </td>
@@ -510,15 +526,22 @@ function bindItemActions(app, trip, tripId) {
       if (!item) return;
       const row = app.querySelector(`.item-row[data-id="${esc(item.id)}"]`);
       if (!row) return;
+      row.classList.add("is-editing");
 
       row.innerHTML = `
-        <td class="col-name" data-label="物品" colspan="2">
-          <input type="text" class="edit-name-input" value="${esc(item.name)}" maxlength="100" />
+        <td class="col-name" colspan="2">
+          <div class="edit-field">
+            <span class="item-field-label">物品</span>
+            <input type="text" class="edit-name-input" value="${esc(item.name)}" maxlength="100" />
+          </div>
         </td>
-        <td class="col-qty" data-label="數量">
-          <input type="number" class="edit-qty-input" value="${item.qty}" min="1" />
+        <td class="col-qty">
+          <div class="edit-field">
+            <span class="item-field-label">數量</span>
+            <input type="number" class="edit-qty-input" value="${item.qty}" min="1" />
+          </div>
         </td>
-        <td class="col-actions edit-actions-cell" data-label="操作" colspan="2">
+        <td class="col-actions edit-actions-cell" colspan="2">
           <button class="btn-primary btn-sm js-save-edit">儲存</button>
           <button class="btn-secondary btn-sm js-cancel-edit">取消</button>
         </td>`;
