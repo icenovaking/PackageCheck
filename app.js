@@ -328,8 +328,8 @@ function renderTripDetail(app, tripId) {
             <tr>
               <th class="col-name">物品</th>
               <th class="col-qty">數量</th>
-              <th class="col-check">出發確認</th>
-              <th class="col-check">回程確認</th>
+              <th class="col-check">出發</th>
+              <th class="col-check">回程</th>
               <th class="col-actions"></th>
             </tr>
           </thead>
