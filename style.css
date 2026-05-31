@@ -1263,3 +1263,149 @@ a {
     scroll-behavior: auto !important;
   }
 }
+
+/* =========================================================================
+   Trip-Type Presets (additive — do not modify existing rules above)
+   ========================================================================= */
+
+/* Settings entry-point button: trailing position inside .view-header.
+   Reuses .btn-icon; only adds layout hints + min tap target (≥ 44 px). */
+.btn-icon-settings {
+  margin-left: auto;
+  min-width: 2.85rem;
+  min-height: 2.85rem;
+  flex-shrink: 0;
+}
+
+/* Trip-type <select> matches the existing .add-form <input> visual language. */
+.select-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 3.35rem;
+  padding: 0.95rem 2.4rem 0.95rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(22, 57, 75, 0.14);
+  background-color: rgba(255, 255, 255, 0.82);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--sea-deep) 50%),
+    linear-gradient(135deg, var(--sea-deep) 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.15rem) calc(50% - 0.2rem),
+    calc(100% - 0.75rem) calc(50% - 0.2rem);
+  background-size:
+    0.4rem 0.4rem,
+    0.4rem 0.4rem;
+  background-repeat: no-repeat;
+  color: var(--heading);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  font: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.select-input:focus {
+  outline: none;
+  border-color: rgba(47, 108, 121, 0.56);
+  box-shadow: 0 0 0 4px rgba(47, 108, 121, 0.12);
+  background-color: rgba(255, 255, 255, 0.94);
+}
+
+/* Settings page layout */
+.settings-hint {
+  margin: -0.4rem 0 1rem;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+
+.trip-type-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.trip-type-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.1rem;
+  border-radius: var(--radius-lg);
+}
+
+.trip-type-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.trip-type-name-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.trip-type-name {
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 3.4vw, 1.8rem);
+  color: var(--heading);
+  line-height: 1.1;
+  word-break: break-word;
+}
+
+.trip-type-header .edit-name-input {
+  min-height: 3rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.9rem;
+  font-size: 1rem;
+}
+
+.preset-add-form {
+  margin-top: 0.25rem;
+}
+
+.preset-empty {
+  padding: 1.2rem 1rem;
+}
+
+.preset-empty p {
+  margin: 0 auto;
+  max-width: 34ch;
+}
+
+.preset-table-wrap {
+  margin-top: 0.25rem;
+}
+
+/* Preset table omits checkbox columns — narrower action column. */
+.preset-table .col-actions {
+  width: 8rem;
+}
+
+@media (max-width: 768px) {
+  .btn-icon-settings {
+    align-self: flex-end;
+    margin-left: 0;
+  }
+
+  .trip-type-header {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 540px) {
+  .preset-table .col-actions {
+    width: 28%;
+  }
+
+  .preset-table .col-qty {
+    width: 18%;
+  }
+}

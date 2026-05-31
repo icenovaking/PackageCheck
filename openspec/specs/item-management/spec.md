@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+Defines how items within a trip are added, edited, deleted, and toggled across departure and return checklists.
+
+## Requirements
 
 ### Requirement: Add an item to a trip
 

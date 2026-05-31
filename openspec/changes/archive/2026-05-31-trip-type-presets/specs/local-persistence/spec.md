@@ -1,8 +1,4 @@
-## Purpose
-
-Defines how trip, item, and trip-type data are persisted in the browser's `localStorage` so the app behaves as a durable local-first tool with graceful fallback when storage is unavailable or corrupt.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Persist trips and items across page reloads
 

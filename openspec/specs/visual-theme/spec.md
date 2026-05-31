@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+Defines the travel-themed visual language (palette, typography, surfaces, iconography) that all views share.
+
+## Requirements
 
 ### Requirement: Travel-themed colour palette
 
