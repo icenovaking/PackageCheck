@@ -438,23 +438,23 @@ function buildItemRow(item) {
   const fullyChecked = item.departureChecked && item.returnChecked;
   return `
     <tr class="item-row${fullyChecked ? " fully-checked" : ""}" data-id="${esc(item.id)}">
-      <td class="col-name item-name">
+      <td class="col-name item-name" data-label="物品">
         <div class="table-item-name">${esc(item.name)}</div>
       </td>
-      <td class="col-qty item-qty">${item.qty}</td>
-      <td class="col-check">
+      <td class="col-qty item-qty" data-label="數量">${item.qty}</td>
+      <td class="col-check" data-label="出發確認">
         <label class="checkbox-wrap" aria-label="出發確認：${esc(item.name)}">
           <input type="checkbox" class="js-cb-dep" data-id="${esc(item.id)}"${item.departureChecked ? " checked" : ""} />
           <span class="checkbox-custom"></span>
         </label>
       </td>
-      <td class="col-check">
+      <td class="col-check" data-label="回程確認">
         <label class="checkbox-wrap" aria-label="回國確認：${esc(item.name)}">
           <input type="checkbox" class="js-cb-ret" data-id="${esc(item.id)}"${item.returnChecked ? " checked" : ""} />
           <span class="checkbox-custom"></span>
         </label>
       </td>
-      <td class="col-actions">
+      <td class="col-actions" data-label="操作">
         <div class="action-group">
           <button class="btn-icon btn-icon-edit js-edit-item" data-id="${esc(item.id)}" aria-label="編輯 ${esc(item.name)}">
             ${icon("edit")}
@@ -512,13 +512,13 @@ function bindItemActions(app, trip, tripId) {
       if (!row) return;
 
       row.innerHTML = `
-        <td class="col-name" colspan="2">
+        <td class="col-name" data-label="物品" colspan="2">
           <input type="text" class="edit-name-input" value="${esc(item.name)}" maxlength="100" />
         </td>
-        <td class="col-qty">
+        <td class="col-qty" data-label="數量">
           <input type="number" class="edit-qty-input" value="${item.qty}" min="1" />
         </td>
-        <td class="col-actions edit-actions-cell" colspan="2">
+        <td class="col-actions edit-actions-cell" data-label="操作" colspan="2">
           <button class="btn-primary btn-sm js-save-edit">儲存</button>
           <button class="btn-secondary btn-sm js-cancel-edit">取消</button>
         </td>`;
