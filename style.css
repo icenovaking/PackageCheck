@@ -415,7 +415,7 @@ a.header-chip:hover {
 
 .add-form input[type="number"],
 .input-group-compact {
-  min-width: 8rem;
+  min-width: 5rem;
 }
 
 .add-form input:focus,
@@ -469,6 +469,11 @@ a.header-chip:hover {
 .btn-primary:hover {
   transform: translateY(-1px);
   box-shadow: 0 16px 30px rgba(22, 57, 75, 0.22);
+}
+
+.add-form .btn-primary {
+  width: fit-content;
+  margin: 0 auto;
 }
 
 .btn-secondary {
