@@ -422,7 +422,7 @@ function renderTripList(app) {
               </div>
               <div class="trip-type-checkboxes">
                 <label class="trip-type-checkbox">
-                  <input type="checkbox" name="trip-type" value="" data-is-none="true" />
+                  <input type="checkbox" name="trip-type" value="" data-is-none="true" checked />
                   <span>（無）</span>
                 </label>
                 ${state.tripTypes

@@ -374,9 +374,8 @@ a.header-chip:hover {
 
 .add-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: 1fr;
   gap: 0.9rem;
-  align-items: end;
 }
 
 .add-form > * {
@@ -937,7 +936,6 @@ a.header-chip:hover {
   }
 
   .add-form {
-    grid-template-columns: 1fr;
     gap: 0.7rem;
   }
 
