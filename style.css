@@ -1422,3 +1422,142 @@ a.header-chip:hover {
     width: 18%;
   }
 }
+
+/* =========================================================================
+   Multi-Select Trip Types (additive — extends trip-type-presets)
+   ========================================================================= */
+
+/* Trip type label row with counter */
+.trip-type-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* Checkbox container layout */
+.trip-type-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+/* Individual checkbox container */
+.trip-type-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.95rem;
+  border: 1.5px solid rgba(22, 57, 75, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+  user-select: none;
+}
+
+.trip-type-checkbox:hover {
+  border-color: rgba(47, 108, 121, 0.4);
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.trip-type-checkbox input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--sea);
+}
+
+.trip-type-checkbox input[type="checkbox"]:checked {
+  accent-color: var(--sea-deep);
+}
+
+.trip-type-checkbox input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.trip-type-checkbox:has(input:checked) {
+  border-color: var(--sea);
+  background: rgba(47, 108, 121, 0.08);
+  box-shadow: 0 0 0 2px rgba(47, 108, 121, 0.12);
+}
+
+.trip-type-checkbox:has(input:disabled) {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.trip-type-checkbox span {
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.trip-type-checkbox:has(input:checked) span {
+  font-weight: 600;
+  color: var(--sea-deep);
+}
+
+/* Selection counter */
+.selection-counter {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.selection-counter.at-limit {
+  color: var(--sea-deep);
+  font-weight: 700;
+}
+
+/* Type badges on trip cards */
+.trip-type-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.trip-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(47, 108, 121, 0.12);
+  color: var(--sea-deep);
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid rgba(47, 108, 121, 0.18);
+}
+
+/* Responsive adjustments */
+@media (max-width: 540px) {
+  .trip-type-checkbox {
+    padding: 0.6rem 0.8rem;
+    gap: 0.4rem;
+  }
+
+  .trip-type-checkbox span {
+    font-size: 0.85rem;
+  }
+
+  .trip-type-checkbox input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .selection-counter {
+    font-size: 0.75rem;
+  }
+
+  .trip-type-badge {
+    font-size: 0.68rem;
+    padding: 0.35rem 0.65rem;
+  }
+}

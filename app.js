@@ -6,7 +6,7 @@
 // ─── State (1.3) ─────────────────────────────────────────────────────────────
 const STORAGE_KEY = "packcheck_data";
 
-/** @type {{ trips: Array<{id:string, name:string, createdAt:string, items:Array, typeId?:string|null}>, tripTypes: Array<{id:string, name:string, createdAt:string, presetItems:Array<{id:string,name:string,qty:number}>}> }} */
+/** @type {{ trips: Array<{id:string, name:string, createdAt:string, items:Array, typeId?:string|null, typeIds?:string[]|null, typeDisplay?:string|null}>, tripTypes: Array<{id:string, name:string, createdAt:string, presetItems:Array<{id:string,name:string,qty:number}>}> }} */
 let state = { trips: [], tripTypes: [] };
 let storageAvailable = true;
 
@@ -98,7 +98,8 @@ const DEMO_DATA = {
       id: "demo-trip-japan",
       name: "11月日本土浦煙火行",
       createdAt: "2026-01-01T00:00:00.000Z",
-      typeId: "demo-type-travel",
+      typeIds: ["demo-type-travel"],
+      typeDisplay: "旅遊",
       items: [
         {
           id: "demo-item-passport",
@@ -152,6 +153,8 @@ function loadState() {
       if (!Array.isArray(state.tripTypes)) {
         state.tripTypes = [];
       }
+      // Migrate legacy typeId to typeIds + typeDisplay
+      migrateTrips();
     } else {
       throw new Error("unexpected shape");
     }
@@ -197,6 +200,97 @@ function esc(str) {
 
 function icon(name) {
   return `<span class="icon icon-${name}" aria-hidden="true">${ICONS[name] || ""}</span>`;
+}
+
+/**
+ * Migrate trips from legacy typeId to typeIds + typeDisplay structure.
+ * Called after loading state from storage.
+ */
+function migrateTrips() {
+  state.trips.forEach((trip) => {
+    // If has old typeId but no new fields
+    if (trip.typeId && !trip.typeIds) {
+      const type = state.tripTypes.find((t) => t.id === trip.typeId);
+      trip.typeIds = [trip.typeId];
+      trip.typeDisplay = type?.name || null;
+      delete trip.typeId;
+    }
+
+    // Ensure new fields exist
+    if (!trip.typeIds) {
+      trip.typeIds = null;
+      trip.typeDisplay = null;
+    }
+  });
+}
+
+/**
+ * Check if two item names are the same for deduplication purposes.
+ * - Chinese text: strict exact match (===)
+ * - English text: case-insensitive + trimmed
+ * - Mixed text: treat as Chinese (strict)
+ */
+function isSameItem(name1, name2) {
+  const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
+
+  // Any Chinese characters → strict comparison
+  if (hasChinese(name1) || hasChinese(name2)) {
+    return name1 === name2;
+  }
+
+  // Pure English/ASCII → case-insensitive + trimmed
+  return name1.trim().toLowerCase() === name2.trim().toLowerCase();
+}
+
+/**
+ * Merge preset items from multiple trip types with intelligent deduplication.
+ * @param {string[]} selectedTypeIds - Array of trip type IDs to merge
+ * @returns {Array} Merged and deduplicated items with qty: 1
+ */
+function mergePresetItems(selectedTypeIds) {
+  const allItems = [];
+  const existingNames = [];
+
+  selectedTypeIds.forEach((typeId) => {
+    const type = state.tripTypes.find((t) => t.id === typeId);
+    if (!type) return;
+
+    type.presetItems.forEach((preset) => {
+      // Check if item already exists using intelligent comparison
+      const isDuplicate = existingNames.some((existing) =>
+        isSameItem(existing, preset.name),
+      );
+
+      if (!isDuplicate) {
+        existingNames.push(preset.name);
+        allItems.push({
+          id: genId(),
+          name: preset.name,
+          qty: 1, // Always default to 1
+          departureChecked: false,
+          returnChecked: false,
+        });
+      }
+    });
+  });
+
+  return allItems;
+}
+
+/**
+ * Build display string from selected trip type IDs.
+ * @param {string[]} selectedTypeIds - Array of trip type IDs
+ * @returns {string|null} Display string like "旅遊+潛水" or null if empty
+ */
+function buildTypeDisplay(selectedTypeIds) {
+  if (!selectedTypeIds || selectedTypeIds.length === 0) return null;
+
+  const names = selectedTypeIds
+    .map((id) => state.tripTypes.find((t) => t.id === id))
+    .filter(Boolean)
+    .map((t) => t.name);
+
+  return names.length > 0 ? names.join("+") : null;
 }
 
 // ─── Router (3.1 / 3.2 / 3.3) ────────────────────────────────────────────────
@@ -253,6 +347,17 @@ function renderTripList(app) {
         const ret = trip.items.filter((i) => i.returnChecked).length;
         const progressSummary =
           total === 0 ? "尚未建立任何行李項目" : `${total} 件物品已加入清單`;
+
+        // Build type badges if typeDisplay exists
+        let typeBadges = "";
+        if (trip.typeDisplay) {
+          const typeNames = trip.typeDisplay.split("+");
+          typeBadges = `
+            <div class="trip-type-badges">
+              ${typeNames.map((name) => `<span class="trip-type-badge">${esc(name)}</span>`).join("")}
+            </div>`;
+        }
+
         return `
           <div class="trip-card" role="listitem">
             <a href="#trip/${esc(trip.id)}" class="trip-card-body" aria-label="前往旅程：${esc(trip.name)}">
@@ -261,6 +366,7 @@ function renderTripList(app) {
                 <span class="trip-summary">${progressSummary}</span>
               </div>
               <span class="trip-name">${esc(trip.name)}</span>
+              ${typeBadges}
               <div class="trip-progress">
                 <span class="progress-pill progress-pill-departure">${icon("departure")}出發 ${dep}/${total}</span>
                 <span class="progress-pill progress-pill-return">${icon("arrival")}回程 ${ret}/${total}</span>
@@ -310,16 +416,25 @@ function renderTripList(app) {
               />
             </div>
             <div class="input-group">
-              <label for="input-trip-type">旅程類型</label>
-              <select id="input-trip-type" class="select-input">
-                <option value="">（無）</option>
+              <div class="trip-type-label-row">
+                <label>旅程類型</label>
+                <span id="selection-counter" class="selection-counter hidden"></span>
+              </div>
+              <div class="trip-type-checkboxes">
+                <label class="trip-type-checkbox">
+                  <input type="checkbox" name="trip-type" value="" data-is-none="true" />
+                  <span>（無）</span>
+                </label>
                 ${state.tripTypes
                   .map(
                     (t) =>
-                      `<option value="${esc(t.id)}">${esc(t.name)}</option>`,
+                      `<label class="trip-type-checkbox">
+                        <input type="checkbox" name="trip-type" value="${esc(t.id)}" />
+                        <span>${esc(t.name)}</span>
+                      </label>`,
                   )
                   .join("")}
-              </select>
+              </div>
             </div>
             <button type="submit" class="btn-primary">
               ${icon("plus")}
@@ -333,14 +448,71 @@ function renderTripList(app) {
       </main>
     </div>`;
 
+  // Bind: trip type checkbox handlers
+  const checkboxes = app.querySelectorAll('input[name="trip-type"]');
+  const counter = app.querySelector("#selection-counter");
+  const noneCheckbox = app.querySelector('input[data-is-none="true"]');
+
+  function updateSelectionCounter() {
+    const selected = Array.from(checkboxes).filter(
+      (cb) => cb.checked && !cb.dataset.isNone,
+    );
+    const count = selected.length;
+
+    if (count === 0) {
+      counter.classList.add("hidden");
+    } else {
+      counter.classList.remove("hidden");
+      if (count >= 3) {
+        counter.textContent = "已選 3 個（已達上限）";
+        counter.classList.add("at-limit");
+        // Disable unselected checkboxes
+        checkboxes.forEach((cb) => {
+          if (!cb.checked && !cb.dataset.isNone) {
+            cb.disabled = true;
+          }
+        });
+      } else {
+        counter.textContent = `已選 ${count} 個（最多 3 個）`;
+        counter.classList.remove("at-limit");
+        // Enable all checkboxes
+        checkboxes.forEach((cb) => {
+          cb.disabled = false;
+        });
+      }
+    }
+  }
+
+  checkboxes.forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      if (checkbox.dataset.isNone) {
+        // "（無）" clicked - uncheck all others
+        if (checkbox.checked) {
+          checkboxes.forEach((cb) => {
+            if (!cb.dataset.isNone) cb.checked = false;
+          });
+        }
+      } else {
+        // Any type clicked - uncheck "（無）"
+        if (checkbox.checked && noneCheckbox) {
+          noneCheckbox.checked = false;
+        }
+      }
+      updateSelectionCounter();
+    });
+  });
+
   // Bind: add trip (4.2)
   document.getElementById("form-add-trip").addEventListener("submit", (e) => {
     e.preventDefault();
     const nameInput = document.getElementById("input-trip-name");
-    const typeSelect = document.getElementById("input-trip-type");
     const errEl = document.getElementById("trip-error");
     const name = nameInput.value.trim();
-    const typeId = typeSelect ? typeSelect.value : "";
+
+    // Collect selected type IDs from checkboxes
+    const selectedTypeIds = Array.from(checkboxes)
+      .filter((cb) => cb.checked && !cb.dataset.isNone && cb.value)
+      .map((cb) => cb.value);
 
     if (!name) {
       errEl.textContent = "請輸入旅程名稱。";
@@ -351,33 +523,22 @@ function renderTripList(app) {
 
     errEl.classList.add("hidden");
 
-    // Deep-copy preset items if a type was selected (one-time copy at creation).
-    let seedItems = [];
-    let resolvedTypeId = null;
-    if (typeId) {
-      const type = state.tripTypes.find((t) => t.id === typeId);
-      if (type) {
-        resolvedTypeId = type.id;
-        seedItems = type.presetItems.map((p) => ({
-          id: genId(),
-          name: p.name,
-          qty: p.qty,
-          departureChecked: false,
-          returnChecked: false,
-        }));
-      }
-    }
+    // Merge preset items from selected types
+    const seedItems = mergePresetItems(selectedTypeIds);
+    const typeDisplay = buildTypeDisplay(selectedTypeIds);
 
     state.trips.push({
       id: genId(),
       name,
       createdAt: new Date().toISOString(),
-      typeId: resolvedTypeId,
+      typeIds: selectedTypeIds.length > 0 ? selectedTypeIds : null,
+      typeDisplay: typeDisplay,
       items: seedItems,
     });
     saveState(); // 2.3
     nameInput.value = "";
-    if (typeSelect) typeSelect.value = "";
+    checkboxes.forEach((cb) => (cb.checked = false));
+    counter.classList.add("hidden");
     renderTripList(document.getElementById("app"));
   });
 
