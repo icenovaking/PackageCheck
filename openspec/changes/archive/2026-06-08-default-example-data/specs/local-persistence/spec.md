@@ -1,24 +1,4 @@
-## Purpose
-
-Defines how trip, item, and trip-type data are persisted in the browser's `localStorage` so the app behaves as a durable local-first tool with graceful fallback when storage is unavailable or corrupt.
-## Requirements
-### Requirement: Persist trips and items across page reloads
-
-The system SHALL save all trip, item, and trip-type data to `localStorage` so it is available after the page is refreshed or the browser is restarted.
-
-#### Scenario: Data survives reload
-
-- **WHEN** user refreshes the page or reopens the tab
-- **THEN** all trips with their items, plus all trip types with their preset items, SHALL be restored exactly as they were
-
-### Requirement: Write-through persistence
-
-The system SHALL persist every change immediately when it occurs, without requiring a manual save action.
-
-#### Scenario: Immediate save on change
-
-- **WHEN** user creates, edits, or deletes a trip, an item, a trip type, or a preset item, or toggles a checkbox
-- **THEN** the updated data SHALL be written to `localStorage` before the next user interaction is accepted
+## MODIFIED Requirements
 
 ### Requirement: Graceful handling of missing or corrupt storage
 
@@ -43,4 +23,3 @@ The system SHALL handle the case where `localStorage` is unavailable or contains
 
 - **WHEN** `localStorage.getItem()` returns `null` for the app's storage key
 - **THEN** the system SHALL seed the state with example data (as defined in the `default-example-data` capability), save it to `localStorage`, and proceed with normal operation
-

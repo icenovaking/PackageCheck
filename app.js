@@ -76,6 +76,49 @@ const ICONS = {
     </svg>`,
 };
 
+// ─── Example Data ────────────────────────────────────────────────────────────
+
+const DEMO_DATA = {
+  tripTypes: [
+    {
+      id: "demo-type-travel",
+      name: "旅遊",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      presetItems: [
+        {
+          id: "demo-preset-passport",
+          name: "護照",
+          qty: 1,
+        },
+      ],
+    },
+  ],
+  trips: [
+    {
+      id: "demo-trip-japan",
+      name: "11月日本土浦煙火行",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      typeId: "demo-type-travel",
+      items: [
+        {
+          id: "demo-item-passport",
+          name: "護照",
+          qty: 1,
+          departureChecked: false,
+          returnChecked: false,
+        },
+        {
+          id: "demo-item-phone",
+          name: "手機",
+          qty: 1,
+          departureChecked: false,
+          returnChecked: false,
+        },
+      ],
+    },
+  ],
+};
+
 // ─── Persistence (2.1 / 2.2) ─────────────────────────────────────────────────
 
 function loadState() {
@@ -94,17 +137,23 @@ function loadState() {
   // Read existing data
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.trips)) {
-        state = parsed;
-        // Legacy payloads predating trip-types: default to [] silently.
-        if (!Array.isArray(state.tripTypes)) {
-          state.tripTypes = [];
-        }
-      } else {
-        throw new Error("unexpected shape");
+    if (raw === null) {
+      // First launch: seed with example data
+      state = DEMO_DATA;
+      saveState();
+      return;
+    }
+
+    // Parse existing data
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.trips)) {
+      state = parsed;
+      // Legacy payloads predating trip-types: default to [] silently.
+      if (!Array.isArray(state.tripTypes)) {
+        state.tripTypes = [];
       }
+    } else {
+      throw new Error("unexpected shape");
     }
   } catch (_) {
     state = { trips: [], tripTypes: [] };
