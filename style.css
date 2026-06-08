@@ -211,6 +211,19 @@ a {
   white-space: nowrap;
 }
 
+a.header-chip {
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+a.header-chip:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: var(--sea);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 37, 50, 0.08);
+}
+
 .page-main {
   display: grid;
   grid-template-columns: 1fr;

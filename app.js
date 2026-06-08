@@ -244,8 +244,8 @@ function renderTripList(app) {
               <p class="section-kicker">My Trips</p>
               <h2>我的旅程</h2>
             </div>
-            <a href="#settings" class="btn-icon btn-icon-settings" aria-label="開啟旅程類型設定">
-              ${icon("settings")}
+            <a href="#settings" class="header-chip" aria-label="開啟旅程類型設定">
+              類型設定
             </a>
           </div>
 
