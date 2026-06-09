@@ -1148,7 +1148,7 @@ a.header-chip:hover {
 
   .action-group {
     display: inline-flex;
-    justify-content: center;
+    justify-content: flex-end;
     width: 100%;
     gap: 0.18rem;
   }
