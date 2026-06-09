@@ -903,6 +903,8 @@ a.header-chip:hover {
     white-space: normal;
     padding: 0.55rem 0.8rem;
     font-size: 0.65rem;
+    width: fit-content;
+    align-self: flex-end;
   }
 
   .hero-panel,
