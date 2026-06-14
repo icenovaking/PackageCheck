@@ -661,6 +661,7 @@ a.header-chip:hover {
   color: var(--sea-deep);
   font-size: 0.62rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .trip-summary {
@@ -1677,6 +1678,7 @@ a.header-chip:hover {
   font-size: 0.72rem;
   font-weight: 700;
   border: 1px solid rgba(47, 108, 121, 0.18);
+  white-space: nowrap;
 }
 
 /* Responsive adjustments */
