@@ -13,6 +13,7 @@ const uiState = {
   expandedTripId: null,
   expandedTypeId: null,
   editingTypeId: null,
+  editingTripId: null,
   pendingCardFocus: null,
 };
 
@@ -394,10 +395,21 @@ function buildTripCard(trip) {
   const progressSummary =
     total === 0 ? "尚未建立任何行李項目" : `${total} 件物品已加入清單`;
   const expanded = uiState.expandedTripId === trip.id;
+  const editing = uiState.editingTripId === trip.id;
 
-  return `
-    <div class="trip-card surface-panel${expanded ? " is-expanded" : ""}" data-trip-id="${esc(trip.id)}" role="listitem">
-      <div class="trip-card-header">
+  const headerHtml = editing
+    ? `
+        <div class="card-toggle-editing">
+          <div class="trip-card-main">
+            <div class="trip-card-top">
+              <span class="trip-tag">Trip Plan</span>
+              <span class="trip-summary">${progressSummary}</span>
+            </div>
+            <input type="text" class="edit-name-input js-edit-trip-input" value="${esc(trip.name)}" maxlength="100" aria-label="旅程名稱" />
+          </div>
+          <span class="card-toggle-indicator disabled">${icon("chevronUp")}</span>
+        </div>`
+    : `
         <button type="button" class="card-toggle trip-card-toggle js-toggle-trip" data-id="${esc(trip.id)}" aria-expanded="${expanded}">
           <div class="trip-card-main">
             <div class="trip-card-top">
@@ -407,17 +419,36 @@ function buildTripCard(trip) {
             <span class="trip-name">${esc(trip.name)}</span>
           </div>
           <span class="card-toggle-indicator">${icon(expanded ? "chevronUp" : "chevronDown")}</span>
-        </button>
-        ${
-          expanded
-            ? `
-              <div class="trip-card-header-actions">
+        </button>`;
+
+  const actionsHtml = expanded
+    ? `
+        <div class="trip-card-header-actions">
+          ${
+            editing
+              ? `
+                <button class="btn-icon btn-icon-save js-save-trip" data-id="${esc(trip.id)}" aria-label="儲存旅程 ${esc(trip.name)}">
+                  ${icon("check")}
+                </button>
+                <button class="btn-icon btn-icon-cancel js-cancel-trip" data-id="${esc(trip.id)}" aria-label="取消編輯旅程 ${esc(trip.name)}">
+                  ${icon("x")}
+                </button>`
+              : `
+                <button class="btn-icon btn-icon-edit js-edit-trip" data-id="${esc(trip.id)}" aria-label="編輯旅程 ${esc(trip.name)}">
+                  ${icon("edit")}
+                </button>
                 <button class="btn-icon btn-icon-danger js-delete-trip" data-id="${esc(trip.id)}" aria-label="刪除旅程 ${esc(trip.name)}">
                   ${icon("trash")}
-                </button>
-              </div>`
-            : ""
-        }
+                </button>`
+          }
+        </div>`
+    : "";
+
+  return `
+    <div class="trip-card surface-panel${expanded ? " is-expanded" : ""}" data-trip-id="${esc(trip.id)}" role="listitem">
+      <div class="trip-card-header">
+        ${headerHtml}
+        ${actionsHtml}
       </div>
       ${
         expanded
@@ -767,6 +798,78 @@ function renderTripList(app) {
     btn.addEventListener("click", () => {
       toggleExpandedCard("trip", btn.dataset.id);
       renderTripList(document.getElementById("app"));
+    });
+  });
+
+  // Bind: edit trip name
+  app.querySelectorAll(".js-edit-trip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      uiState.editingTripId = id;
+      renderTripList(document.getElementById("app"));
+      // Focus and select the input text
+      const card = document.querySelector(`[data-trip-id="${id}"]`);
+      const input = card?.querySelector(".js-edit-trip-input");
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    });
+  });
+
+  app.querySelectorAll(".js-save-trip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      const card = document.querySelector(`[data-trip-id="${id}"]`);
+      const input = card?.querySelector(".js-edit-trip-input");
+      const newName = input?.value.trim();
+      if (!newName) {
+        alert("請輸入旅程名稱。");
+        input?.focus();
+        return;
+      }
+      const trip = state.trips.find((t) => t.id === id);
+      if (trip) {
+        trip.name = newName;
+        saveState();
+      }
+      uiState.editingTripId = null;
+      renderTripList(document.getElementById("app"));
+    });
+  });
+
+  app.querySelectorAll(".js-cancel-trip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      uiState.editingTripId = null;
+      renderTripList(document.getElementById("app"));
+    });
+  });
+
+  app.querySelectorAll(".js-edit-trip-input").forEach((input) => {
+    input.addEventListener("keydown", (e) => {
+      const card = input.closest("[data-trip-id]");
+      const id = card?.dataset.tripId;
+      if (!id) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const newName = input.value.trim();
+        if (!newName) {
+          alert("請輸入旅程名稱。");
+          input.focus();
+          return;
+        }
+        const trip = state.trips.find((t) => t.id === id);
+        if (trip) {
+          trip.name = newName;
+          saveState();
+        }
+        uiState.editingTripId = null;
+        renderTripList(document.getElementById("app"));
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        uiState.editingTripId = null;
+        renderTripList(document.getElementById("app"));
+      }
     });
   });
 
