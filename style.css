@@ -707,13 +707,7 @@ a.header-chip:hover {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  justify-content: center;
   gap: 0.65rem;
-}
-
-.trip-progress-paired .progress-pill {
-  flex: 1;
-  max-width: 240px;
 }
 
 .progress-pill {
@@ -1090,7 +1084,12 @@ a.header-chip:hover {
   }
 
   .trip-progress-paired {
+    justify-content: center;
     gap: 0.55rem;
+  }
+
+  .trip-progress-paired .progress-pill {
+    flex: 1;
   }
 
   .item-table th,
