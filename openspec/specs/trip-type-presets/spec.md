@@ -29,7 +29,7 @@ The system SHALL display all existing trip types on the settings page in creatio
 #### Scenario: Trip types present
 
 - **WHEN** one or more trip types exist
-- **THEN** the settings page SHALL list each trip type in creation order as a compact card whose collapsed header shows the type's identity and management controls
+- **THEN** the settings page SHALL list each trip type in creation order as a compact card whose collapsed header shows only the "Trip Type" label, the type's name, and the expand/collapse chevron control
 
 #### Scenario: Type cards start collapsed
 
@@ -135,17 +135,22 @@ The system SHALL implement the settings page, settings entry-point button, trip-
 
 ### Requirement: Toggle trip-type card expansion
 
-The system SHALL let the user expand or collapse trip-type cards from the settings page using an explicit card toggle control.
+The system SHALL let the user expand or collapse trip-type cards from the settings page by clicking anywhere on the card header.
 
 #### Scenario: Expand a collapsed type card
 
-- **WHEN** the user toggles a collapsed trip-type card open
-- **THEN** the system SHALL expand that card, reveal its preset-item form and preset-item list, and collapse any other currently expanded trip-type card
+- **WHEN** the user toggles a collapsed trip-type card open (by clicking the card header)
+- **THEN** the system SHALL expand that card, reveal its preset-item form, preset-item list, edit control, and delete control, and collapse any other currently expanded trip-type card
 
 #### Scenario: Collapse the expanded type card
 
-- **WHEN** the user toggles the currently expanded trip-type card closed
+- **WHEN** the user toggles the currently expanded trip-type card closed (by clicking the card header)
 - **THEN** the system SHALL hide its preset-item form and preset-item list and return the card to compact summary state
+
+#### Scenario: Toggle card via header click
+
+- **WHEN** the user clicks anywhere on a collapsed or expanded trip-type card header (excluding active edit/delete/save/cancel controls)
+- **THEN** the system SHALL toggle the card's expansion state
 
 ### Requirement: Jump to an existing trip type from settings
 
