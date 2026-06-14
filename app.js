@@ -9,6 +9,12 @@ const STORAGE_KEY = "packcheck_data";
 /** @type {{ trips: Array<{id:string, name:string, createdAt:string, items:Array, typeId?:string|null, typeIds?:string[]|null, typeDisplay?:string|null}>, tripTypes: Array<{id:string, name:string, createdAt:string, presetItems:Array<{id:string,name:string,qty:number}>}> }} */
 let state = { trips: [], tripTypes: [] };
 let storageAvailable = true;
+const uiState = {
+  expandedTripId: null,
+  expandedTypeId: null,
+  editingTypeId: null,
+  pendingCardFocus: null,
+};
 
 const ICONS = {
   brand: `
@@ -73,6 +79,14 @@ const ICONS = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="3"></circle>
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.13.43.45.79.86 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path>
+    </svg>`,
+  chevronDown: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m6 9 6 6 6-6"></path>
+    </svg>`,
+  chevronUp: `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m6 15 6-6 6 6"></path>
     </svg>`,
 };
 
@@ -202,6 +216,221 @@ function icon(name) {
   return `<span class="icon icon-${name}" aria-hidden="true">${ICONS[name] || ""}</span>`;
 }
 
+function cardSelector(kind, id) {
+  if (kind === "trip") {
+    return `.trip-card[data-trip-id="${esc(id)}"]`;
+  }
+  return `.trip-type-card[data-type-id="${esc(id)}"]`;
+}
+
+function toggleExpandedCard(kind, id) {
+  const key = kind === "trip" ? "expandedTripId" : "expandedTypeId";
+  uiState[key] = uiState[key] === id ? null : id;
+}
+
+function setExpandedCard(kind, id) {
+  const key = kind === "trip" ? "expandedTripId" : "expandedTypeId";
+  uiState[key] = id;
+}
+
+function queueCardFocus(kind, id) {
+  uiState.pendingCardFocus = { kind, id };
+}
+
+function applyPendingCardFocus(app) {
+  if (!uiState.pendingCardFocus) return;
+  const { kind, id } = uiState.pendingCardFocus;
+  uiState.pendingCardFocus = null;
+
+  requestAnimationFrame(() => {
+    const card = app.querySelector(cardSelector(kind, id));
+    if (!card) return;
+
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+    card.classList.add("card-highlight");
+    card.setAttribute("tabindex", "-1");
+    card.focus({ preventScroll: true });
+
+    setTimeout(() => {
+      card.classList.remove("card-highlight");
+      if (card.getAttribute("tabindex") === "-1") {
+        card.removeAttribute("tabindex");
+      }
+    }, 1800);
+  });
+}
+
+function buildTripTypeBadges(typeDisplay) {
+  if (!typeDisplay) return "";
+  const typeNames = typeDisplay.split("+");
+  return `
+    <div class="trip-type-badges">
+      ${typeNames.map((name) => `<span class="trip-type-badge">${esc(name)}</span>`).join("")}
+    </div>`;
+}
+
+function buildTripItemsContent(trip) {
+  if (trip.items.length === 0) {
+    return `
+      <div class="empty-state empty-state-inline">
+        <div class="empty-icon">${icon("suitcase")}</div>
+        <h3>還沒有物品</h3>
+        <p>把護照、充電器、衣物或回程伴手禮需求都先列進來，之後勾選會更快。</p>
+      </div>`;
+  }
+
+  const rows = trip.items.map((item) => buildItemRow(item)).join("");
+  return `
+    <div class="item-table-wrap">
+      <table class="item-table" role="grid" aria-label="行李清單">
+        <thead>
+          <tr>
+            <th class="col-name">物品</th>
+            <th class="col-qty">數量</th>
+            <th class="col-check">出發</th>
+            <th class="col-check">回程</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function buildTripManager(trip, view) {
+  const scopeId = `${view}-${trip.id}`;
+  return `
+    <form class="add-form surface-panel js-add-item-form" data-trip-id="${esc(trip.id)}" data-view="${view}" novalidate>
+      <div class="input-group input-group-wide">
+        <label for="input-item-name-${esc(scopeId)}">物品名稱</label>
+        <input
+          type="text"
+          id="input-item-name-${esc(scopeId)}"
+          class="js-item-name-input"
+          placeholder="物品名稱（例如：護照）"
+          autocomplete="off"
+          maxlength="100"
+        />
+      </div>
+      <div class="input-group input-group-compact">
+        <label for="input-item-qty-${esc(scopeId)}">數量</label>
+        <input
+          type="number"
+          id="input-item-qty-${esc(scopeId)}"
+          class="js-item-qty-input"
+          placeholder="數量"
+          min="1"
+          value="1"
+        />
+      </div>
+      <button type="submit" class="btn-primary">
+        ${icon("plus")}
+        <span>新增物品</span>
+      </button>
+    </form>
+    <div class="field-error hidden js-item-error" data-trip-id="${esc(trip.id)}" data-view="${view}" role="alert"></div>
+    <div class="item-list">${buildTripItemsContent(trip)}</div>`;
+}
+
+function rerenderTripView(tripId, view) {
+  if (view === "detail") {
+    renderTripDetail(document.getElementById("app"), tripId);
+    return;
+  }
+
+  uiState.expandedTripId = tripId;
+  renderTripList(document.getElementById("app"));
+}
+
+function bindTripItemForms(app) {
+  app.querySelectorAll(".js-add-item-form").forEach((form) => {
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const tripId = form.dataset.tripId;
+      const view = form.dataset.view || "detail";
+      const trip = state.trips.find((t) => t.id === tripId);
+      if (!trip) return;
+
+      const nameInput = form.querySelector(".js-item-name-input");
+      const qtyInput = form.querySelector(".js-item-qty-input");
+      const errEl = app.querySelector(
+        `.js-item-error[data-trip-id="${esc(tripId)}"][data-view="${esc(view)}"]`,
+      );
+      const name = nameInput.value.trim();
+      const qty = parseInt(qtyInput.value, 10);
+
+      if (!name) {
+        errEl.textContent = "請輸入物品名稱。";
+        errEl.classList.remove("hidden");
+        nameInput.focus();
+        return;
+      }
+
+      if (!Number.isInteger(qty) || qty < 1) {
+        errEl.textContent = "數量必須是正整數（≥ 1）。";
+        errEl.classList.remove("hidden");
+        qtyInput.focus();
+        return;
+      }
+
+      errEl.classList.add("hidden");
+      trip.items.push({
+        id: genId(),
+        name,
+        qty,
+        departureChecked: false,
+        returnChecked: false,
+      });
+      saveState();
+      rerenderTripView(tripId, view);
+    });
+  });
+}
+
+function buildTripCard(trip) {
+  const total = trip.items.length;
+  const dep = trip.items.filter((i) => i.departureChecked).length;
+  const ret = trip.items.filter((i) => i.returnChecked).length;
+  const progressSummary =
+    total === 0 ? "尚未建立任何行李項目" : `${total} 件物品已加入清單`;
+  const expanded = uiState.expandedTripId === trip.id;
+
+  return `
+    <div class="trip-card surface-panel${expanded ? " is-expanded" : ""}" data-trip-id="${esc(trip.id)}" role="listitem">
+      <div class="trip-card-header">
+        <button type="button" class="card-toggle trip-card-toggle js-toggle-trip" data-id="${esc(trip.id)}" aria-expanded="${expanded}">
+          <div class="trip-card-main">
+            <div class="trip-card-top">
+              <span class="trip-tag">Trip Plan</span>
+              <span class="trip-summary">${progressSummary}</span>
+            </div>
+            <span class="trip-name">${esc(trip.name)}</span>
+            ${buildTripTypeBadges(trip.typeDisplay)}
+            <div class="trip-progress">
+              <span class="progress-pill progress-pill-departure">${icon("departure")}出發 ${dep}/${total}</span>
+              <span class="progress-pill progress-pill-return">${icon("arrival")}回程 ${ret}/${total}</span>
+            </div>
+          </div>
+          <span class="card-toggle-indicator">${icon(expanded ? "chevronUp" : "chevronDown")}</span>
+        </button>
+        <button class="btn-icon btn-icon-danger js-delete-trip" data-id="${esc(trip.id)}" aria-label="刪除旅程 ${esc(trip.name)}">
+          ${icon("trash")}
+        </button>
+      </div>
+      ${
+        expanded
+          ? `
+            <div class="trip-card-panel">
+              <div class="trip-card-panel-actions">
+                <a href="#trip/${esc(trip.id)}" class="btn-secondary btn-sm trip-detail-link">完整頁面</a>
+              </div>
+              ${buildTripManager(trip, "list")}
+            </div>`
+          : ""
+      }
+    </div>`;
+}
+
 /**
  * Migrate trips from legacy typeId to typeIds + typeDisplay structure.
  * Called after loading state from storage.
@@ -319,16 +548,9 @@ window.addEventListener("hashchange", router);
 
 function renderTripList(app) {
   const { trips } = state;
-  const totalItems = trips.reduce((sum, trip) => sum + trip.items.length, 0);
-  const totalDeparture = trips.reduce(
-    (sum, trip) =>
-      sum + trip.items.filter((item) => item.departureChecked).length,
-    0,
-  );
-  const totalReturn = trips.reduce(
-    (sum, trip) => sum + trip.items.filter((item) => item.returnChecked).length,
-    0,
-  );
+  if (uiState.expandedTripId && !trips.some((trip) => trip.id === uiState.expandedTripId)) {
+    uiState.expandedTripId = null;
+  }
 
   // Build trip cards or empty state
   let tripsContent;
@@ -340,44 +562,7 @@ function renderTripList(app) {
         <p>先建立一個目的地，接著把每件必帶行李整理成清楚的出發與回程清單。</p>
       </div>`;
   } else {
-    tripsContent = trips
-      .map((trip) => {
-        const total = trip.items.length;
-        const dep = trip.items.filter((i) => i.departureChecked).length;
-        const ret = trip.items.filter((i) => i.returnChecked).length;
-        const progressSummary =
-          total === 0 ? "尚未建立任何行李項目" : `${total} 件物品已加入清單`;
-
-        // Build type badges if typeDisplay exists
-        let typeBadges = "";
-        if (trip.typeDisplay) {
-          const typeNames = trip.typeDisplay.split("+");
-          typeBadges = `
-            <div class="trip-type-badges">
-              ${typeNames.map((name) => `<span class="trip-type-badge">${esc(name)}</span>`).join("")}
-            </div>`;
-        }
-
-        return `
-          <div class="trip-card" role="listitem">
-            <a href="#trip/${esc(trip.id)}" class="trip-card-body" aria-label="前往旅程：${esc(trip.name)}">
-              <div class="trip-card-top">
-                <span class="trip-tag">Trip Plan</span>
-                <span class="trip-summary">${progressSummary}</span>
-              </div>
-              <span class="trip-name">${esc(trip.name)}</span>
-              ${typeBadges}
-              <div class="trip-progress">
-                <span class="progress-pill progress-pill-departure">${icon("departure")}出發 ${dep}/${total}</span>
-                <span class="progress-pill progress-pill-return">${icon("arrival")}回程 ${ret}/${total}</span>
-              </div>
-            </a>
-            <button class="btn-icon btn-icon-danger js-delete-trip" data-id="${esc(trip.id)}" aria-label="刪除旅程 ${esc(trip.name)}">
-              ${icon("trash")}
-            </button>
-          </div>`;
-      })
-      .join("");
+    tripsContent = trips.map((trip) => buildTripCard(trip)).join("");
   }
 
   app.innerHTML = `
@@ -403,6 +588,24 @@ function renderTripList(app) {
               類型設定
             </a>
           </div>
+
+          <form id="form-trip-jump" class="jump-search-form surface-panel" novalidate>
+            <div class="input-group input-group-grow">
+              <label for="select-trip-jump">現有行程查詢</label>
+              <select id="select-trip-jump" class="select-input"${trips.length === 0 ? " disabled" : ""}>
+                <option value="">${trips.length === 0 ? "尚無可查詢行程" : "選擇既有行程"}</option>
+                ${trips
+                  .map(
+                    (trip) =>
+                      `<option value="${esc(trip.id)}">${esc(trip.name)}</option>`,
+                  )
+                  .join("")}
+              </select>
+            </div>
+            <button type="submit" class="btn-secondary btn-sm"${trips.length === 0 ? " disabled" : ""}>
+              查詢
+            </button>
+          </form>
 
           <form id="form-add-trip" class="add-form surface-panel" novalidate>
             <div class="input-group">
@@ -502,6 +705,16 @@ function renderTripList(app) {
     });
   });
 
+  document.getElementById("form-trip-jump").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const select = document.getElementById("select-trip-jump");
+    if (!select.value) return;
+    uiState.editingTypeId = null;
+    setExpandedCard("trip", select.value);
+    queueCardFocus("trip", select.value);
+    renderTripList(document.getElementById("app"));
+  });
+
   // Bind: add trip (4.2)
   document.getElementById("form-add-trip").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -532,14 +745,23 @@ function renderTripList(app) {
       name,
       createdAt: new Date().toISOString(),
       typeIds: selectedTypeIds.length > 0 ? selectedTypeIds : null,
-      typeDisplay: typeDisplay,
+      typeDisplay,
       items: seedItems,
     });
     saveState(); // 2.3
     nameInput.value = "";
     checkboxes.forEach((cb) => (cb.checked = false));
     counter.classList.add("hidden");
+    if (noneCheckbox) noneCheckbox.checked = true;
+    uiState.expandedTripId = null;
     renderTripList(document.getElementById("app"));
+  });
+
+  app.querySelectorAll(".js-toggle-trip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      toggleExpandedCard("trip", btn.dataset.id);
+      renderTripList(document.getElementById("app"));
+    });
   });
 
   // Bind: delete trip (4.3)
@@ -555,10 +777,27 @@ function renderTripList(app) {
       )
         return;
       state.trips = state.trips.filter((t) => t.id !== id);
+      if (uiState.expandedTripId === id) {
+        uiState.expandedTripId = null;
+      }
       saveState(); // 2.3
       renderTripList(document.getElementById("app"));
     });
   });
+
+  bindTripItemForms(app);
+
+  if (uiState.expandedTripId) {
+    const expandedTrip = state.trips.find((trip) => trip.id === uiState.expandedTripId);
+    if (expandedTrip) {
+      bindItemActions(app, expandedTrip, () => {
+        uiState.expandedTripId = expandedTrip.id;
+        renderTripList(document.getElementById("app"));
+      });
+    }
+  }
+
+  applyPendingCardFocus(app);
 }
 
 // ─── Trip Detail View (5.1 – 5.6) ────────────────────────────────────────────
@@ -568,40 +807,6 @@ function renderTripDetail(app, tripId) {
   if (!trip) {
     location.replace("#trips");
     return;
-  }
-
-  const totalItems = trip.items.length;
-  const departureCount = trip.items.filter(
-    (item) => item.departureChecked,
-  ).length;
-  const returnCount = trip.items.filter((item) => item.returnChecked).length;
-
-  // Build items table or empty state
-  let itemsContent;
-  if (trip.items.length === 0) {
-    itemsContent = `
-      <div class="empty-state empty-state-inline">
-        <div class="empty-icon">${icon("suitcase")}</div>
-        <h3>還沒有物品</h3>
-        <p>把護照、充電器、衣物或回程伴手禮需求都先列進來，之後勾選會更快。</p>
-      </div>`;
-  } else {
-    const rows = trip.items.map((item) => buildItemRow(item)).join("");
-    itemsContent = `
-      <div class="item-table-wrap">
-        <table class="item-table" role="grid" aria-label="行李清單">
-          <thead>
-            <tr>
-              <th class="col-name">物品</th>
-              <th class="col-qty">數量</th>
-              <th class="col-check">出發</th>
-              <th class="col-check">回程</th>
-              <th class="col-actions"></th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
   }
 
   app.innerHTML = `
@@ -626,77 +831,15 @@ function renderTripDetail(app, tripId) {
             </div>
           </div>
 
-          <form id="form-add-item" class="add-form surface-panel" novalidate>
-            <div class="input-group input-group-wide">
-              <label for="input-item-name">物品名稱</label>
-              <input
-                type="text"
-                id="input-item-name"
-                placeholder="物品名稱（例如：護照）"
-                autocomplete="off"
-                maxlength="100"
-              />
-            </div>
-            <div class="input-group input-group-compact">
-              <label for="input-item-qty">數量</label>
-              <input
-                type="number"
-                id="input-item-qty"
-                placeholder="數量"
-                min="1"
-                value="1"
-              />
-            </div>
-            <button type="submit" class="btn-primary">
-              ${icon("plus")}
-              <span>新增物品</span>
-            </button>
-          </form>
-          <div id="item-error" class="field-error hidden" role="alert"></div>
-
-          <div class="item-list">${itemsContent}</div>
+          ${buildTripManager(trip, "detail")}
         </section>
       </main>
     </div>`;
 
-  // Bind: add item (5.2)
-  document.getElementById("form-add-item").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const nameInput = document.getElementById("input-item-name");
-    const qtyInput = document.getElementById("input-item-qty");
-    const errEl = document.getElementById("item-error");
-    const name = nameInput.value.trim();
-    const qty = parseInt(qtyInput.value, 10);
-
-    if (!name) {
-      errEl.textContent = "請輸入物品名稱。";
-      errEl.classList.remove("hidden");
-      nameInput.focus();
-      return;
-    }
-    if (!Number.isInteger(qty) || qty < 1) {
-      errEl.textContent = "數量必須是正整數（≥ 1）。";
-      errEl.classList.remove("hidden");
-      qtyInput.focus();
-      return;
-    }
-
-    errEl.classList.add("hidden");
-    trip.items.push({
-      id: genId(),
-      name,
-      qty,
-      departureChecked: false,
-      returnChecked: false,
-    });
-    saveState(); // 2.3
-    nameInput.value = "";
-    qtyInput.value = "1";
+  bindTripItemForms(app);
+  bindItemActions(app, trip, () => {
     renderTripDetail(document.getElementById("app"), tripId);
   });
-
-  // Bind: checkbox toggles, edit, delete
-  bindItemActions(app, trip, tripId);
 }
 
 /** Build a single item <tr> HTML string. */
@@ -750,7 +893,7 @@ function buildItemRow(item) {
 }
 
 /** Bind all item-level interactions. */
-function bindItemActions(app, trip, tripId) {
+function bindItemActions(app, trip, rerender) {
   // 5.3 – pre-departure checkbox toggle
   app.querySelectorAll(".js-cb-dep").forEach((cb) => {
     cb.addEventListener("change", () => {
@@ -781,7 +924,7 @@ function bindItemActions(app, trip, tripId) {
       if (!confirm(`確定要刪除「${item.name}」？`)) return;
       trip.items = trip.items.filter((i) => i.id !== btn.dataset.id);
       saveState(); // 2.3
-      renderTripDetail(document.getElementById("app"), tripId);
+      rerender();
     });
   });
 
@@ -823,11 +966,11 @@ function bindItemActions(app, trip, tripId) {
         item.name = newName;
         item.qty = newQty;
         saveState(); // 2.3
-        renderTripDetail(document.getElementById("app"), tripId);
+        rerender();
       });
 
       row.querySelector(".js-cancel-edit").addEventListener("click", () => {
-        renderTripDetail(document.getElementById("app"), tripId);
+        rerender();
       });
     });
   });
@@ -850,6 +993,18 @@ function updateRowClass(app, item) {
 
 function renderSettings(app) {
   const { tripTypes } = state;
+  if (
+    uiState.expandedTypeId &&
+    !tripTypes.some((type) => type.id === uiState.expandedTypeId)
+  ) {
+    uiState.expandedTypeId = null;
+  }
+  if (
+    uiState.editingTypeId &&
+    !tripTypes.some((type) => type.id === uiState.editingTypeId)
+  ) {
+    uiState.editingTypeId = null;
+  }
 
   let typesContent;
   if (tripTypes.length === 0) {
@@ -890,6 +1045,24 @@ function renderSettings(app) {
 
           <p class="settings-hint">套用為預設項目，不會回頭修改既有旅程。</p>
 
+          <form id="form-type-jump" class="jump-search-form surface-panel" novalidate>
+            <div class="input-group input-group-grow">
+              <label for="select-type-jump">類型查詢</label>
+              <select id="select-type-jump" class="select-input"${tripTypes.length === 0 ? " disabled" : ""}>
+                <option value="">${tripTypes.length === 0 ? "尚無可查詢類型" : "選擇現有類型"}</option>
+                ${tripTypes
+                  .map(
+                    (type) =>
+                      `<option value="${esc(type.id)}">${esc(type.name)}</option>`,
+                  )
+                  .join("")}
+              </select>
+            </div>
+            <button type="submit" class="btn-secondary btn-sm"${tripTypes.length === 0 ? " disabled" : ""}>
+              查詢
+            </button>
+          </form>
+
           <form id="form-add-trip-type" class="add-form surface-panel" novalidate>
             <div class="input-group">
               <label for="input-trip-type-name">類型名稱</label>
@@ -914,9 +1087,12 @@ function renderSettings(app) {
     </div>`;
 
   bindSettingsActions(app);
+  applyPendingCardFocus(app);
 }
 
 function buildTripTypeCard(type) {
+  const expanded = uiState.expandedTypeId === type.id;
+  const editing = uiState.editingTypeId === type.id;
   let presetContent;
   if (type.presetItems.length === 0) {
     presetContent = `
@@ -943,53 +1119,79 @@ function buildTripTypeCard(type) {
   }
 
   return `
-    <div class="trip-type-card surface-panel" data-type-id="${esc(type.id)}" role="listitem">
+    <div class="trip-type-card surface-panel${expanded ? " is-expanded" : ""}" data-type-id="${esc(type.id)}" role="listitem">
       <div class="trip-type-header">
-        <div class="trip-type-name-wrap">
-          <span class="trip-tag">Trip Type</span>
-          <span class="trip-type-name">${esc(type.name)}</span>
+        <div class="trip-type-header-main">
+          <div class="trip-type-name-wrap">
+            <span class="trip-tag">Trip Type</span>
+            ${
+              editing
+                ? `<input type="text" class="edit-name-input js-edit-type-input" value="${esc(type.name)}" maxlength="100" aria-label="類型名稱" />`
+                : `<span class="trip-type-name">${esc(type.name)}</span>`
+            }
+          </div>
         </div>
-        <div class="action-group">
-          <button class="btn-icon btn-icon-edit js-edit-type" data-id="${esc(type.id)}" aria-label="編輯類型 ${esc(type.name)}">
-            ${icon("edit")}
-          </button>
-          <button class="btn-icon btn-icon-danger js-delete-type" data-id="${esc(type.id)}" aria-label="刪除類型 ${esc(type.name)}">
-            ${icon("trash")}
-          </button>
+        <div class="action-group card-header-actions trip-type-header-actions">
+          ${
+            editing
+              ? `
+                <button class="btn-icon btn-icon-save js-save-type" data-id="${esc(type.id)}" aria-label="儲存類型 ${esc(type.name)}">
+                  ${icon("check")}
+                </button>
+                <button class="btn-icon btn-icon-cancel js-cancel-type" data-id="${esc(type.id)}" aria-label="取消編輯類型 ${esc(type.name)}">
+                  ${icon("x")}
+                </button>`
+              : `
+                <button class="btn-icon btn-icon-edit js-edit-type" data-id="${esc(type.id)}" aria-label="編輯類型 ${esc(type.name)}">
+                  ${icon("edit")}
+                </button>
+                <button class="btn-icon btn-icon-danger js-delete-type" data-id="${esc(type.id)}" aria-label="刪除類型 ${esc(type.name)}">
+                  ${icon("trash")}
+                </button>
+                <button class="btn-icon js-toggle-type" data-id="${esc(type.id)}" aria-label="${expanded ? "收合" : "展開"}類型 ${esc(type.name)}" aria-expanded="${expanded}">
+                  ${icon(expanded ? "chevronUp" : "chevronDown")}
+                </button>`
+          }
         </div>
       </div>
 
-      <form class="add-form surface-panel preset-add-form js-add-preset-form" data-type-id="${esc(type.id)}" novalidate>
-        <div class="input-group input-group-wide">
-          <label for="input-preset-name-${esc(type.id)}">預設物品名稱</label>
-          <input
-            type="text"
-            id="input-preset-name-${esc(type.id)}"
-            class="js-preset-name-input"
-            placeholder="物品名稱（例如：護照）"
-            autocomplete="off"
-            maxlength="100"
-          />
-        </div>
-        <div class="input-group input-group-compact">
-          <label for="input-preset-qty-${esc(type.id)}">數量</label>
-          <input
-            type="number"
-            id="input-preset-qty-${esc(type.id)}"
-            class="js-preset-qty-input"
-            placeholder="數量"
-            min="1"
-            value="1"
-          />
-        </div>
-        <button type="submit" class="btn-primary">
-          ${icon("plus")}
-          <span>新增物品</span>
-        </button>
-      </form>
-      <div class="field-error hidden js-preset-error" data-type-id="${esc(type.id)}" role="alert"></div>
-
-      ${presetContent}
+      ${
+        expanded
+          ? `
+            <div class="trip-type-card-panel">
+              <form class="add-form surface-panel preset-add-form js-add-preset-form" data-type-id="${esc(type.id)}" novalidate>
+                <div class="input-group input-group-wide">
+                  <label for="input-preset-name-${esc(type.id)}">預設物品名稱</label>
+                  <input
+                    type="text"
+                    id="input-preset-name-${esc(type.id)}"
+                    class="js-preset-name-input"
+                    placeholder="物品名稱（例如：護照）"
+                    autocomplete="off"
+                    maxlength="100"
+                  />
+                </div>
+                <div class="input-group input-group-compact">
+                  <label for="input-preset-qty-${esc(type.id)}">數量</label>
+                  <input
+                    type="number"
+                    id="input-preset-qty-${esc(type.id)}"
+                    class="js-preset-qty-input"
+                    placeholder="數量"
+                    min="1"
+                    value="1"
+                  />
+                </div>
+                <button type="submit" class="btn-primary">
+                  ${icon("plus")}
+                  <span>新增物品</span>
+                </button>
+              </form>
+              <div class="field-error hidden js-preset-error" data-type-id="${esc(type.id)}" role="alert"></div>
+              ${presetContent}
+            </div>`
+          : ""
+      }
     </div>`;
 }
 
@@ -1026,6 +1228,16 @@ function buildPresetRow(typeId, preset) {
 function bindSettingsActions(app) {
   const rerender = () => renderSettings(document.getElementById("app"));
 
+  document.getElementById("form-type-jump").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const select = document.getElementById("select-type-jump");
+    if (!select.value) return;
+    uiState.editingTypeId = null;
+    setExpandedCard("type", select.value);
+    queueCardFocus("type", select.value);
+    rerender();
+  });
+
   // Add a new trip type
   document
     .getElementById("form-add-trip-type")
@@ -1049,11 +1261,29 @@ function bindSettingsActions(app) {
       });
       saveState();
       input.value = "";
+      uiState.editingTypeId = null;
       rerender();
     });
 
+  app.querySelectorAll(".js-toggle-type").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      uiState.editingTypeId = null;
+      toggleExpandedCard("type", btn.dataset.id);
+      rerender();
+    });
+  });
+
   // Edit trip-type name (inline)
   app.querySelectorAll(".js-edit-type").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const typeId = btn.dataset.id;
+      uiState.editingTypeId = typeId;
+      uiState.expandedTypeId = typeId;
+      rerender();
+    });
+  });
+
+  app.querySelectorAll(".js-save-type").forEach((btn) => {
     btn.addEventListener("click", () => {
       const typeId = btn.dataset.id;
       const type = state.tripTypes.find((t) => t.id === typeId);
@@ -1061,34 +1291,24 @@ function bindSettingsActions(app) {
       const card = app.querySelector(
         `.trip-type-card[data-type-id="${esc(typeId)}"]`,
       );
-      if (!card) return;
-      const header = card.querySelector(".trip-type-header");
-      header.innerHTML = `
-        <div class="trip-type-name-wrap">
-          <span class="trip-tag">Trip Type</span>
-          <input type="text" class="edit-name-input js-edit-type-input" value="${esc(type.name)}" maxlength="100" aria-label="類型名稱" />
-        </div>
-        <div class="action-group edit-actions-cell">
-          <button class="btn-icon btn-icon-save js-save-type" aria-label="儲存類型 ${esc(type.name)}">
-            ${icon("check")}
-          </button>
-          <button class="btn-icon btn-icon-cancel js-cancel-type" aria-label="取消編輯類型 ${esc(type.name)}">
-            ${icon("x")}
-          </button>
-        </div>`;
-      const input = header.querySelector(".js-edit-type-input");
-      input.focus();
-      input.select();
-      header.querySelector(".js-save-type").addEventListener("click", () => {
-        const newName = input.value.trim();
-        if (!newName) return;
-        type.name = newName;
-        saveState();
-        rerender();
-      });
-      header
-        .querySelector(".js-cancel-type")
-        .addEventListener("click", rerender);
+      const input = card?.querySelector(".js-edit-type-input");
+      if (!input) return;
+      const newName = input.value.trim();
+      if (!newName) {
+        input.focus();
+        return;
+      }
+      type.name = newName;
+      uiState.editingTypeId = null;
+      saveState();
+      rerender();
+    });
+  });
+
+  app.querySelectorAll(".js-cancel-type").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      uiState.editingTypeId = null;
+      rerender();
     });
   });
 
@@ -1105,6 +1325,12 @@ function bindSettingsActions(app) {
       )
         return;
       state.tripTypes = state.tripTypes.filter((t) => t.id !== typeId);
+      if (uiState.expandedTypeId === typeId) {
+        uiState.expandedTypeId = null;
+      }
+      if (uiState.editingTypeId === typeId) {
+        uiState.editingTypeId = null;
+      }
       saveState();
       rerender();
     });
@@ -1138,6 +1364,7 @@ function bindSettingsActions(app) {
       }
       errEl.classList.add("hidden");
       type.presetItems.push({ id: genId(), name, qty });
+      uiState.expandedTypeId = typeId;
       saveState();
       rerender();
     });
@@ -1154,6 +1381,7 @@ function bindSettingsActions(app) {
       if (!preset) return;
       if (!confirm(`確定要刪除預設物品「${preset.name}」？`)) return;
       type.presetItems = type.presetItems.filter((p) => p.id !== presetId);
+      uiState.expandedTypeId = typeId;
       saveState();
       rerender();
     });
@@ -1202,6 +1430,7 @@ function bindSettingsActions(app) {
           if (!newName || !Number.isInteger(newQty) || newQty < 1) return;
           preset.name = newName;
           preset.qty = newQty;
+          uiState.expandedTypeId = typeId;
           saveState();
           rerender();
         });
@@ -1210,6 +1439,14 @@ function bindSettingsActions(app) {
         .addEventListener("click", rerender);
     });
   });
+
+  if (uiState.editingTypeId) {
+    const input = app.querySelector(".js-edit-type-input");
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }
 }
 
 // ─── Init (1.3) ───────────────────────────────────────────────────────────────
