@@ -584,14 +584,16 @@ a.header-chip:hover {
   overflow: hidden;
 }
 
-.trip-card-header {
+.trip-card-header,
+.trip-type-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.45rem;
   align-items: start;
 }
 
-.trip-card-header-actions {
+.trip-card-header-actions,
+.trip-type-header-actions {
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
@@ -1074,16 +1076,14 @@ a.header-chip:hover {
     min-width: 0;
   }
 
-  .trip-card-header {
+  .trip-card-header,
+  .trip-type-header {
     grid-template-columns: 1fr;
   }
 
-  .trip-card-header-actions {
-    justify-content: flex-end;
-  }
-
+  .trip-card-header-actions,
   .trip-type-header-actions {
-    justify-self: end;
+    justify-content: flex-end;
   }
 
   .trip-card-panel-actions {
@@ -1510,13 +1510,7 @@ a.header-chip:hover {
   overflow: hidden;
 }
 
-.trip-type-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
+
 
 .trip-type-name-wrap {
   display: flex;

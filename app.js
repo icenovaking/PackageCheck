@@ -1215,20 +1215,31 @@ function buildTripTypeCard(type) {
       </div>`;
   }
 
-  return `
-    <div class="trip-type-card surface-panel${expanded ? " is-expanded" : ""}" data-type-id="${esc(type.id)}" role="listitem">
-      <div class="trip-type-header">
-        <div class="trip-type-header-main">
-          <div class="trip-type-name-wrap">
-            <span class="trip-tag">Trip Type</span>
-            ${
-              editing
-                ? `<input type="text" class="edit-name-input js-edit-type-input" value="${esc(type.name)}" maxlength="100" aria-label="類型名稱" />`
-                : `<span class="trip-type-name">${esc(type.name)}</span>`
-            }
+  const headerHtml = editing
+    ? `
+        <div class="card-toggle-editing">
+          <div class="trip-type-header-main">
+            <div class="trip-type-name-wrap">
+              <span class="trip-tag">Trip Type</span>
+              <input type="text" class="edit-name-input js-edit-type-input" value="${esc(type.name)}" maxlength="100" aria-label="類型名稱" />
+            </div>
           </div>
-        </div>
-        <div class="action-group card-header-actions trip-type-header-actions">
+          <span class="card-toggle-indicator disabled">${icon("chevronUp")}</span>
+        </div>`
+    : `
+        <button type="button" class="card-toggle trip-type-card-toggle js-toggle-type" data-id="${esc(type.id)}" aria-expanded="${expanded}">
+          <div class="trip-type-header-main">
+            <div class="trip-type-name-wrap">
+              <span class="trip-tag">Trip Type</span>
+              <span class="trip-type-name">${esc(type.name)}</span>
+            </div>
+          </div>
+          <span class="card-toggle-indicator">${icon(expanded ? "chevronUp" : "chevronDown")}</span>
+        </button>`;
+
+  const actionsHtml = expanded
+    ? `
+        <div class="trip-type-header-actions">
           ${
             editing
               ? `
@@ -1244,12 +1255,16 @@ function buildTripTypeCard(type) {
                 </button>
                 <button class="btn-icon btn-icon-danger js-delete-type" data-id="${esc(type.id)}" aria-label="刪除類型 ${esc(type.name)}">
                   ${icon("trash")}
-                </button>
-                <button class="btn-icon js-toggle-type" data-id="${esc(type.id)}" aria-label="${expanded ? "收合" : "展開"}類型 ${esc(type.name)}" aria-expanded="${expanded}">
-                  ${icon(expanded ? "chevronUp" : "chevronDown")}
                 </button>`
           }
-        </div>
+        </div>`
+    : "";
+
+  return `
+    <div class="trip-type-card surface-panel${expanded ? " is-expanded" : ""}" data-type-id="${esc(type.id)}" role="listitem">
+      <div class="trip-type-header">
+        ${headerHtml}
+        ${actionsHtml}
       </div>
 
       ${
