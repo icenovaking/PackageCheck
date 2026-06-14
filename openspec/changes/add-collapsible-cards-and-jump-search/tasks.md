@@ -7,9 +7,9 @@
 ## 2. Trip list collapsible cards and trip query
 
 - [x] 2.1 Add the trip query dropdown and query button to the `#trips` page using existing form/select styling and disable or empty-state behavior when no trips exist.
-- [x] 2.2 Refactor trip-card rendering so cards default to collapsed summary state and expose an explicit toggle control with single-card expansion behavior.
-- [x] 2.3 Render inline trip management content inside the expanded trip card by reusing existing add-item, validation, item-list, and item-action behavior from the dedicated trip-detail flow.
-- [x] 2.4 Preserve a dedicated control that still navigates to `#trip/<id>` and verify the route-based detail page remains functional after the list-page expansion work.
+- [x] 2.2 Refactor trip-card rendering so cards default to collapsed state that stops at the trip name and expose an explicit toggle control with single-card expansion behavior.
+- [x] 2.3 Render only secondary summary details inside the expanded trip card, including type badges, aligned departure/return progress pills, and delete control.
+- [x] 2.4 Preserve a dedicated control that navigates to `#trip/<id>` and keep all add/edit/delete/toggle item management on the route-based detail page.
 
 ## 3. Trip-type settings collapsible cards and type query
 
@@ -20,5 +20,5 @@
 ## 4. Responsive polish and verification
 
 - [x] 4.1 Update `style.css` so jump-search controls wrap cleanly on 320 px mobile widths and collapse controls remain touch-friendly.
-- [ ] 4.2 Verify expanded trip cards and expanded trip-type cards do not introduce horizontal scrolling on narrow screens.
-- [ ] 4.3 Manually test jump-to-card, collapse/expand, inline editing, delete confirmations, and route navigation across both pages.
+- [x] 4.2 Verify expanded trip cards and expanded trip-type cards do not introduce horizontal scrolling on narrow screens.
+- [x] 4.3 Manually test jump-to-card, collapse/expand, inline editing, delete confirmations, and route navigation across both pages.

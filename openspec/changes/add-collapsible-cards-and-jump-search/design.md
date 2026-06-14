@@ -4,7 +4,7 @@ PackCheck is currently a client-side SPA with hash routing, localStorage persist
 
 This change affects two separate surfaces that already share the same visual language but use different interaction patterns:
 
-- The trip list page must gain inline expansion behavior without removing the existing `#trip/<id>` route.
+- The trip list page must gain compact collapsible summary cards without removing the existing `#trip/<id>` route.
 - The trip-type settings page must keep its existing management controls but hide them behind a compact collapsed header by default.
 
 Because rendering is string-based and rerender-driven, the change must define how ephemeral UI state survives rerenders without polluting persisted storage.
@@ -17,7 +17,7 @@ Because rendering is string-based and rerender-driven, the change must define ho
 - Let users jump directly to an existing trip or trip type by selecting it from a dropdown and pressing a query action.
 - Keep the new controls visually consistent with the existing `surface-panel`, `trip-tag`, `header-chip`, `btn-primary`, and `select-input` vocabulary.
 - Preserve the existing localStorage data model and the dedicated trip-detail route.
-- Keep item-management and preset-management behavior consistent between inline expanded views and existing dedicated flows.
+- Keep trip-item management on the dedicated trip-detail page while exposing only lightweight summary information from the trip list.
 
 **Non-Goals:**
 
@@ -72,20 +72,21 @@ Alternative considered:
 - Free-text search with live filtering.
   Rejected because the user explicitly requested dropdown selection and direct jump behavior, not filtering.
 
-### 4. Inline expanded trip cards will expose a quick-manage view while preserving the full-detail route
+### 4. Expanded trip cards will reveal only secondary summary details and a detail-page entry point
 
-The trip list page will gain an expanded card body that reveals the trip's actionable content inline. The existing `#trip/<id>` route remains the canonical full-detail page and is still reachable through a dedicated control inside the card.
+The trip list page will keep the dedicated `#trip/<id>` route as the only place where item management occurs. Expanding a trip card will reveal additional summary-level trip metadata plus a dedicated control to open the full detail page.
 
 Chosen approach:
 
-- Expanded trip cards reuse the same item-management structure and logic as the current detail view as much as possible.
-- The inline version exposes the add-item form, item error area, and item list/table.
-- A dedicated control remains available to open the full route-based detail page.
+- Collapsed trip cards show only the `Trip Plan` tag, joined-item summary text, expand/collapse affordance, and trip name.
+- Expanded trip cards reveal the type badges, departure/return progress pills, delete control, and a dedicated full-detail button.
+- Expanded trip cards MUST NOT render the add-item form, item list, or inline item editing controls.
+- The dedicated `#trip/<id>` route remains the only place where add/edit/delete/toggle item management occurs.
 
 Alternative considered:
 
-- Leaving expanded trip cards as summary-only and using them only as navigation launchers.
-  Rejected because it would not satisfy the user's stated goal of opening the card content directly from the trip list.
+- Reusing the full item-management UI inline from the list page.
+  Rejected because it makes the list page too tall on mobile and duplicates the dedicated detail-page responsibility.
 
 ### 5. Trip-type cards will collapse only their body, not their header actions
 
@@ -103,10 +104,10 @@ Alternative considered:
 
 ## Risks / Trade-offs
 
-- [Inline trip management duplicates detail-view complexity] -> Mitigation: reuse existing item row builders and handlers wherever possible instead of creating a second independent item-management flow.
+- [Collapsed cards may hide too much information for some users] -> Mitigation: keep the key identity layer visible in collapsed state and reveal badges/progress immediately on expansion without requiring route navigation.
 - [Rerender timing can break smooth scroll-to-card behavior] -> Mitigation: set a pending target ID before rerender and perform scroll/highlight after the target node exists in the DOM.
 - [Single-open accordion behavior may surprise users expecting multiple open cards] -> Mitigation: keep the expand/collapse affordance obvious and make search actions consistently collapse sibling cards.
-- [Long item tables can still create a tall expanded card] -> Mitigation: collapsed-by-default behavior limits this to only the active card, which is the main usability improvement requested.
+- [Progress pills can wrap awkwardly on narrow screens] -> Mitigation: treat departure/return pills as a paired layout and keep them aligned on the same row in mobile styling.
 
 ## Migration Plan
 
@@ -116,8 +117,8 @@ Rollout steps:
 
 1. Add transient UI state and rendering branches for collapsed/expanded cards.
 2. Add jump-search controls and scroll/highlight behavior on both pages.
-3. Reuse or extract shared item/preset rendering helpers to support inline expanded cards.
-4. Verify routing, add/edit/delete flows, and mobile layout after rerenders.
+3. Update trip-card rendering so expansion stops at summary metadata plus the full-detail button, while keeping all item management on the detail page.
+4. Verify routing, delete flows, and mobile layout after rerenders.
 
 Rollback strategy:
 

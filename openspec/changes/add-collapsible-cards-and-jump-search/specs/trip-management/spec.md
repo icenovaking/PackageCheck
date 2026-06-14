@@ -12,7 +12,7 @@ The system SHALL display all existing trips on the home screen as individually c
 #### Scenario: Trips present
 
 - **WHEN** one or more trips exist
-- **THEN** the system SHALL list every trip by name in the order they were created as a compact card whose collapsed header still exposes identifying summary information
+- **THEN** the system SHALL list every trip by name in the order they were created as a compact card whose collapsed state shows only the `Trip Plan` label, the joined-item summary text, the expand/collapse control, and the trip name
 
 #### Scenario: Cards start collapsed
 
@@ -21,12 +21,7 @@ The system SHALL display all existing trips on the home screen as individually c
 
 ### Requirement: Navigate into a trip
 
-The system SHALL allow the user to view a trip's items either inline from the trip-list page or through the dedicated route-based detail view.
-
-#### Scenario: Open trip inline
-
-- **WHEN** user expands a trip card in the list
-- **THEN** the system SHALL reveal that trip's actionable content inline without navigating away from `#trips`
+The system SHALL allow the user to open a trip's full item-management experience through the dedicated route-based detail view, while using expansion on the trip-list page only for summary details.
 
 #### Scenario: Open trip detail route
 
@@ -35,12 +30,12 @@ The system SHALL allow the user to view a trip's items either inline from the tr
 
 ### Requirement: Existing trip-list and trip-detail behaviour is preserved
 
-The system SHALL preserve the existing trip-detail route and the existing item-management behavior even when trip content is also available inline from an expanded trip card.
+The system SHALL preserve the existing trip-detail route as the only place where trip items are created, edited, deleted, and checked.
 
-#### Scenario: Inline trip controls behave like detail view
+#### Scenario: Expanded trip card excludes item-management controls
 
-- **WHEN** the user interacts with add-item, checkbox-toggle, inline-edit, or delete controls inside an expanded trip card
-- **THEN** each control SHALL invoke the same validation, persistence, and item-management outcome as the dedicated trip-detail view
+- **WHEN** the user expands a trip card from the trip-list page
+- **THEN** the expanded card SHALL NOT render the add-item form, item table, inline item editing controls, or item checkbox controls
 
 #### Scenario: Dedicated detail route remains unchanged
 
@@ -56,12 +51,22 @@ The system SHALL let the user expand or collapse trip cards from the trip-list p
 #### Scenario: Expand a collapsed trip card
 
 - **WHEN** the user toggles a collapsed trip card open
-- **THEN** the system SHALL expand that card, reveal its inline content, and collapse any other currently expanded trip card
+- **THEN** the system SHALL expand that card, reveal its secondary summary content, and collapse any other currently expanded trip card
 
 #### Scenario: Collapse the expanded trip card
 
 - **WHEN** the user toggles the currently expanded trip card closed
 - **THEN** the system SHALL hide its inline content and return the card to compact summary state
+
+#### Scenario: Expanded card reveals secondary summary details
+
+- **WHEN** a trip card is expanded
+- **THEN** the system SHALL reveal the trip's type badges, departure progress pill, return progress pill, delete control, and full-detail button beneath the trip name
+
+#### Scenario: Progress pills align as a pair
+
+- **WHEN** the departure and return progress pills are shown on a phone-sized viewport
+- **THEN** the two pills SHALL remain visually aligned on the same row
 
 ### Requirement: Jump to an existing trip from the trip list
 

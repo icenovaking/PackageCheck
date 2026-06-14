@@ -405,26 +405,32 @@ function buildTripCard(trip) {
               <span class="trip-summary">${progressSummary}</span>
             </div>
             <span class="trip-name">${esc(trip.name)}</span>
-            ${buildTripTypeBadges(trip.typeDisplay)}
-            <div class="trip-progress">
-              <span class="progress-pill progress-pill-departure">${icon("departure")}出發 ${dep}/${total}</span>
-              <span class="progress-pill progress-pill-return">${icon("arrival")}回程 ${ret}/${total}</span>
-            </div>
           </div>
           <span class="card-toggle-indicator">${icon(expanded ? "chevronUp" : "chevronDown")}</span>
         </button>
-        <button class="btn-icon btn-icon-danger js-delete-trip" data-id="${esc(trip.id)}" aria-label="刪除旅程 ${esc(trip.name)}">
-          ${icon("trash")}
-        </button>
+        ${
+          expanded
+            ? `
+              <div class="trip-card-header-actions">
+                <button class="btn-icon btn-icon-danger js-delete-trip" data-id="${esc(trip.id)}" aria-label="刪除旅程 ${esc(trip.name)}">
+                  ${icon("trash")}
+                </button>
+              </div>`
+            : ""
+        }
       </div>
       ${
         expanded
           ? `
             <div class="trip-card-panel">
+              ${buildTripTypeBadges(trip.typeDisplay)}
+              <div class="trip-progress trip-progress-paired">
+                <span class="progress-pill progress-pill-departure">${icon("departure")}出發 ${dep}/${total}</span>
+                <span class="progress-pill progress-pill-return">${icon("arrival")}回程 ${ret}/${total}</span>
+              </div>
               <div class="trip-card-panel-actions">
                 <a href="#trip/${esc(trip.id)}" class="btn-secondary btn-sm trip-detail-link">完整頁面</a>
               </div>
-              ${buildTripManager(trip, "list")}
             </div>`
           : ""
       }
@@ -593,7 +599,7 @@ function renderTripList(app) {
             <div class="input-group input-group-grow">
               <label for="select-trip-jump">現有行程查詢</label>
               <select id="select-trip-jump" class="select-input"${trips.length === 0 ? " disabled" : ""}>
-                <option value="">${trips.length === 0 ? "尚無可查詢行程" : "選擇既有行程"}</option>
+                <option value="">${trips.length === 0 ? "尚無可查詢行程" : "選擇現有行程"}</option>
                 ${trips
                   .map(
                     (trip) =>
@@ -602,7 +608,7 @@ function renderTripList(app) {
                   .join("")}
               </select>
             </div>
-            <button type="submit" class="btn-secondary btn-sm"${trips.length === 0 ? " disabled" : ""}>
+            <button type="submit" class="btn-primary"${trips.length === 0 ? " disabled" : ""}>
               查詢
             </button>
           </form>
@@ -784,18 +790,6 @@ function renderTripList(app) {
       renderTripList(document.getElementById("app"));
     });
   });
-
-  bindTripItemForms(app);
-
-  if (uiState.expandedTripId) {
-    const expandedTrip = state.trips.find((trip) => trip.id === uiState.expandedTripId);
-    if (expandedTrip) {
-      bindItemActions(app, expandedTrip, () => {
-        uiState.expandedTripId = expandedTrip.id;
-        renderTripList(document.getElementById("app"));
-      });
-    }
-  }
 
   applyPendingCardFocus(app);
 }
@@ -1043,7 +1037,7 @@ function renderSettings(app) {
             </div>
           </div>
 
-          <p class="settings-hint">套用為預設項目，不會回頭修改既有旅程。</p>
+          <p class="settings-hint">套用為預設項目，不會回頭修改現有旅程。</p>
 
           <form id="form-type-jump" class="jump-search-form surface-panel" novalidate>
             <div class="input-group input-group-grow">
@@ -1058,7 +1052,7 @@ function renderSettings(app) {
                   .join("")}
               </select>
             </div>
-            <button type="submit" class="btn-secondary btn-sm"${tripTypes.length === 0 ? " disabled" : ""}>
+            <button type="submit" class="btn-primary"${tripTypes.length === 0 ? " disabled" : ""}>
               查詢
             </button>
           </form>
@@ -1320,7 +1314,7 @@ function bindSettingsActions(app) {
       if (!type) return;
       if (
         !confirm(
-          `確定要刪除類型「${type.name}」？\n既有旅程不會受影響，但下次新增旅程將無此選項。`,
+          `確定要刪除類型「${type.name}」？\n現有旅程不會受影響，但下次新增旅程將無此選項。`,
         )
       )
         return;
