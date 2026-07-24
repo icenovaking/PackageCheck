@@ -350,3 +350,5 @@ Generated\ Files/
 # User secrets
 secrets.json
 appsettings.Development.json
+.spectra/
+openspec/.vector-search.db*
