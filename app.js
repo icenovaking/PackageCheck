@@ -5,6 +5,8 @@
 
 // ─── State (1.3) ─────────────────────────────────────────────────────────────
 const STORAGE_KEY = "packcheck_data";
+const DATA_EXPORT_FORMAT = "packcheck-data";
+const DATA_EXPORT_VERSION = 1;
 
 /** @type {{ trips: Array<{id:string, name:string, createdAt:string, items:Array, typeId?:string|null, typeIds?:string[]|null, typeDisplay?:string|null}>, tripTypes: Array<{id:string, name:string, createdAt:string, presetItems:Array<{id:string,name:string,qty:number}>}> }} */
 let state = { trips: [], tripTypes: [] };
@@ -16,6 +18,264 @@ const uiState = {
   editingTripId: null,
   pendingCardFocus: null,
 };
+
+function buildExportPayload(currentState) {
+  return {
+    format: DATA_EXPORT_FORMAT,
+    version: DATA_EXPORT_VERSION,
+    exportedAt: new Date().toISOString(),
+    data: {
+      trips: currentState.trips,
+      tripTypes: currentState.tripTypes,
+    },
+  };
+}
+
+function formatExportTimestamp(date) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}-${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}`;
+}
+
+function downloadExportPayload(payload, dependencies = {}) {
+  const BlobCtor = dependencies.BlobCtor || Blob;
+  const urlApi = dependencies.urlApi || URL;
+  const documentApi = dependencies.documentApi || document;
+  const now = dependencies.now || (() => new Date());
+  const blob = new BlobCtor([JSON.stringify(payload, null, 2)], {
+    type: "application/json",
+  });
+  const objectUrl = urlApi.createObjectURL(blob);
+  const link = documentApi.createElement("a");
+
+  link.href = objectUrl;
+  link.download = `packcheck-export-${formatExportTimestamp(now())}.json`;
+  try {
+    link.click();
+  } finally {
+    urlApi.revokeObjectURL(objectUrl);
+  }
+}
+
+function importValidationError(message) {
+  throw new Error(`匯入資料無效：${message}`);
+}
+
+function requireImportString(value, label) {
+  if (typeof value !== "string" || value.trim() === "") {
+    importValidationError(`${label}必須是非空字串。`);
+  }
+}
+
+function requireImportArray(value, label) {
+  if (!Array.isArray(value)) {
+    importValidationError(`${label}必須是陣列。`);
+  }
+}
+
+function requireImportQuantity(value, label) {
+  if (!Number.isInteger(value) || value < 1) {
+    importValidationError(`${label}（數量）必須是正整數。`);
+  }
+}
+
+function requireUniqueImportIds(records, label) {
+  const ids = new Set();
+  records.forEach((record, index) => {
+    requireImportString(record?.id, `${label}[${index}].id`);
+    if (ids.has(record.id)) {
+      importValidationError(`${label}包含重複的 id。`);
+    }
+    ids.add(record.id);
+  });
+  return ids;
+}
+
+function validateImportPresetItem(item, path) {
+  requireImportString(item?.id, `${path}.id`);
+  requireImportString(item?.name, `${path}.name`);
+  requireImportQuantity(item?.qty, `${path}.qty`);
+}
+
+function validateImportTripType(type, index) {
+  const path = `data.tripTypes[${index}]`;
+  requireImportString(type?.name, `${path}.name`);
+  requireImportString(type?.createdAt, `${path}.createdAt`);
+  if (Number.isNaN(Date.parse(type.createdAt))) {
+    importValidationError(`${path}.createdAt 必須是有效的 ISO 日期。`);
+  }
+  requireImportArray(type?.presetItems, `${path}.presetItems`);
+  requireUniqueImportIds(type.presetItems, `${path}.presetItems`);
+  type.presetItems.forEach((item, itemIndex) => {
+    validateImportPresetItem(item, `${path}.presetItems[${itemIndex}]`);
+  });
+}
+
+function validateImportItem(item, path) {
+  requireImportString(item?.id, `${path}.id`);
+  requireImportString(item?.name, `${path}.name`);
+  requireImportQuantity(item?.qty, `${path}.qty`);
+  if (
+    typeof item?.departureChecked !== "boolean" ||
+    typeof item?.returnChecked !== "boolean"
+  ) {
+    importValidationError(`${path}的勾選狀態必須是布林值。`);
+  }
+}
+
+function validateImportTrip(trip, index, availableTypeIds) {
+  const path = `data.trips[${index}]`;
+  requireImportString(trip?.name, `${path}.name`);
+  requireImportString(trip?.createdAt, `${path}.createdAt`);
+  if (Number.isNaN(Date.parse(trip.createdAt))) {
+    importValidationError(`${path}.createdAt 必須是有效的 ISO 日期。`);
+  }
+  requireImportArray(trip?.items, `${path}.items`);
+  requireUniqueImportIds(trip.items, `${path}.items`);
+  trip.items.forEach((item, itemIndex) => {
+    validateImportItem(item, `${path}.items[${itemIndex}]`);
+  });
+
+  if (trip.typeIds !== null && !Array.isArray(trip.typeIds)) {
+    importValidationError(`${path}.typeIds 必須是 null 或陣列。`);
+  }
+  if (Array.isArray(trip.typeIds)) {
+    const typeIds = new Set();
+    trip.typeIds.forEach((typeId, typeIndex) => {
+      requireImportString(typeId, `${path}.typeIds[${typeIndex}]`);
+      if (typeIds.has(typeId)) {
+        importValidationError(`${path}.typeIds 包含重複的類型 id。`);
+      }
+      if (!availableTypeIds.has(typeId)) {
+        importValidationError(`${path}.typeIds 包含無法解析的類型參照。`);
+      }
+      typeIds.add(typeId);
+    });
+  }
+  if (trip.typeDisplay !== null) {
+    requireImportString(trip.typeDisplay, `${path}.typeDisplay`);
+  }
+}
+
+function normalizeImportPayload(payload) {
+  return {
+    format: payload.format,
+    version: payload.version,
+    exportedAt: payload.exportedAt,
+    data: {
+      tripTypes: payload.data.tripTypes.map((type) => ({
+        id: type.id,
+        name: type.name,
+        createdAt: type.createdAt,
+        presetItems: type.presetItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          qty: item.qty,
+        })),
+      })),
+      trips: payload.data.trips.map((trip) => ({
+        id: trip.id,
+        name: trip.name,
+        createdAt: trip.createdAt,
+        typeIds: trip.typeIds,
+        typeDisplay: trip.typeDisplay,
+        items: trip.items.map((item) => ({
+          id: item.id,
+          name: item.name,
+          qty: item.qty,
+          departureChecked: item.departureChecked,
+          returnChecked: item.returnChecked,
+        })),
+      })),
+    },
+  };
+}
+
+function parseImportPayload(rawText, currentState = { trips: [], tripTypes: [] }) {
+  let payload;
+  try {
+    payload = JSON.parse(rawText);
+  } catch (_) {
+    importValidationError("檔案不是有效 JSON。 ");
+  }
+
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    importValidationError("根資料必須是物件。 ");
+  }
+  if (payload.format !== DATA_EXPORT_FORMAT) {
+    importValidationError("格式不受支援。 ");
+  }
+  if (payload.version !== DATA_EXPORT_VERSION) {
+    importValidationError("版本不受支援。 ");
+  }
+  requireImportString(payload.exportedAt, "exportedAt");
+  if (Number.isNaN(Date.parse(payload.exportedAt))) {
+    importValidationError("exportedAt 必須是有效的 ISO 日期。 ");
+  }
+  requireImportArray(payload.data?.tripTypes, "data.tripTypes");
+  requireImportArray(payload.data?.trips, "data.trips");
+
+  const importedTypeIds = requireUniqueImportIds(
+    payload.data.tripTypes,
+    "data.tripTypes",
+  );
+  const localTypeIds = new Set(
+    (Array.isArray(currentState.tripTypes) ? currentState.tripTypes : [])
+      .map((type) => type?.id)
+      .filter((id) => typeof id === "string" && id.length > 0),
+  );
+  const availableTypeIds = new Set([...localTypeIds, ...importedTypeIds]);
+
+  payload.data.tripTypes.forEach((type, index) => {
+    validateImportTripType(type, index);
+  });
+  requireUniqueImportIds(payload.data.trips, "data.trips");
+  payload.data.trips.forEach((trip, index) => {
+    validateImportTrip(trip, index, availableTypeIds);
+  });
+
+  return normalizeImportPayload(payload);
+}
+
+function mergeImportedState(currentState, importedPayload) {
+  const localTripTypes = Array.isArray(currentState.tripTypes)
+    ? currentState.tripTypes
+    : [];
+  const localTrips = Array.isArray(currentState.trips) ? currentState.trips : [];
+  const localTypeIds = new Set(localTripTypes.map((type) => type.id));
+  const localTripIds = new Set(localTrips.map((trip) => trip.id));
+  const importedTripTypes = importedPayload.data.tripTypes;
+  const importedTrips = importedPayload.data.trips;
+  const tripTypes = [...localTripTypes];
+  const trips = [...localTrips];
+  let skippedTripTypes = 0;
+  let skippedTrips = 0;
+
+  importedTripTypes.forEach((type) => {
+    if (localTypeIds.has(type.id)) {
+      skippedTripTypes += 1;
+      return;
+    }
+    localTypeIds.add(type.id);
+    tripTypes.push(type);
+  });
+
+  importedTrips.forEach((trip) => {
+    if (localTripIds.has(trip.id)) {
+      skippedTrips += 1;
+      return;
+    }
+    localTripIds.add(trip.id);
+    trips.push(trip);
+  });
+
+  return {
+    state: { trips, tripTypes },
+    addedTrips: importedTrips.length - skippedTrips,
+    addedTripTypes: importedTripTypes.length - skippedTripTypes,
+    skippedTrips,
+    skippedTripTypes,
+  };
+}
 
 const ICONS = {
   brand: `
@@ -181,11 +441,13 @@ function loadState() {
 
 /** Write current state to localStorage. Called after every mutation (2.3). */
 function saveState() {
-  if (!storageAvailable) return;
+  if (!storageAvailable) return false;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return true;
   } catch (_) {
     showStorageWarning("無法儲存資料，儲存空間可能已滿。");
+    return false;
   }
 }
 
@@ -215,6 +477,97 @@ function esc(str) {
 
 function icon(name) {
   return `<span class="icon icon-${name}" aria-hidden="true">${ICONS[name] || ""}</span>`;
+}
+
+function buildDataTransferControlsMarkup() {
+  return `
+    <div class="data-transfer-actions" aria-label="資料匯入匯出">
+      <button type="button" id="btn-export-data" class="header-chip data-transfer-button">
+        匯出設定
+      </button>
+      <button type="button" id="btn-import-data" class="header-chip data-transfer-button">
+        匯入設定
+      </button>
+      <input
+        type="file"
+        id="input-import-data"
+        class="hidden"
+        accept=".json,application/json"
+        aria-label="選擇要匯入的 JSON 設定檔"
+      />
+      <div id="data-transfer-status" class="data-transfer-status hidden" role="status" aria-live="polite"></div>
+    </div>`;
+}
+
+function setDataTransferStatus(app, message, tone = "success") {
+  const status = app.querySelector("#data-transfer-status");
+  if (!status) return;
+  status.textContent = message;
+  status.classList.remove("hidden", "is-success", "is-error");
+  status.classList.add(tone === "error" ? "is-error" : "is-success");
+}
+
+function formatDataTransferImportResult(result) {
+  return `匯入完成：新增 ${result.addedTrips} 個旅程、${result.addedTripTypes} 個旅程類型；略過 ${result.skippedTrips} 個重複旅程、${result.skippedTripTypes} 個重複旅程類型。`;
+}
+
+async function importDataFile(file, app) {
+  if (!file) return;
+
+  try {
+    if (typeof file.text !== "function") {
+      throw new Error("無法讀取選取的檔案。 ");
+    }
+    const importedPayload = parseImportPayload(await file.text(), state);
+    const previousState = state;
+    const mergeResult = mergeImportedState(state, importedPayload);
+    state = mergeResult.state;
+
+    if (!saveState()) {
+      state = previousState;
+      setDataTransferStatus(app, "匯入內容無法儲存，請確認瀏覽器儲存空間。", "error");
+      return;
+    }
+
+    renderTripList(app);
+    setDataTransferStatus(
+      app,
+      formatDataTransferImportResult(mergeResult),
+      "success",
+    );
+  } catch (error) {
+    setDataTransferStatus(
+      app,
+      error instanceof Error ? error.message : "匯入失敗，請確認 JSON 檔案格式。",
+      "error",
+    );
+  } finally {
+    const importInput = app.querySelector("#input-import-data");
+    if (importInput) importInput.value = "";
+  }
+}
+
+function bindDataTransferActions(app) {
+  const exportButton = app.querySelector("#btn-export-data");
+  const importButton = app.querySelector("#btn-import-data");
+  const importInput = app.querySelector("#input-import-data");
+
+  exportButton?.addEventListener("click", () => {
+    try {
+      downloadExportPayload(buildExportPayload(state));
+      setDataTransferStatus(app, "設定已匯出。", "success");
+    } catch (_) {
+      setDataTransferStatus(app, "匯出失敗，請稍後再試。", "error");
+    }
+  });
+
+  importButton?.addEventListener("click", () => {
+    importInput?.click();
+  });
+
+  importInput?.addEventListener("change", () => {
+    void importDataFile(importInput.files?.[0], app);
+  });
 }
 
 function cardSelector(kind, id) {
@@ -612,7 +965,7 @@ function renderTripList(app) {
             <h1>PackCheck</h1>
           </div>
         </div>
-        <div class="header-chip">旅遊行李檢查</div>
+        ${buildDataTransferControlsMarkup()}
       </header>
       <main class="page-main view-trips">
         <section class="content-panel">
@@ -687,6 +1040,8 @@ function renderTripList(app) {
         </section>
       </main>
     </div>`;
+
+  bindDataTransferActions(app);
 
   // Bind: trip type checkbox handlers
   const checkboxes = app.querySelectorAll('input[name="trip-type"]');
