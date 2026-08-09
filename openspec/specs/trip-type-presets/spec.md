@@ -2,7 +2,9 @@
 
 ## Purpose
 TBD - created by archiving change trip-type-presets. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Define a trip type
 
 The system SHALL allow users to create a named trip type with an initially empty list of preset items.
@@ -17,6 +19,7 @@ The system SHALL allow users to create a named trip type with an initially empty
 - **WHEN** user attempts to create a trip type with a blank name
 - **THEN** the system SHALL display an error and NOT create the trip type
 
+---
 ### Requirement: List trip types on the settings page
 
 The system SHALL display all existing trip types on the settings page in creation order as individually collapsible cards.
@@ -36,6 +39,7 @@ The system SHALL display all existing trip types on the settings page in creatio
 - **WHEN** the settings page is rendered with existing trip types
 - **THEN** each trip-type card SHALL render in collapsed state until the user expands a card or completes a type jump-search action
 
+---
 ### Requirement: Rename a trip type
 
 The system SHALL allow users to rename an existing trip type.
@@ -50,6 +54,7 @@ The system SHALL allow users to rename an existing trip type.
 - **WHEN** user attempts to save a blank trip-type name
 - **THEN** the system SHALL display an error and NOT change the name
 
+---
 ### Requirement: Delete a trip type
 
 The system SHALL allow users to delete a trip type without affecting any existing trips.
@@ -64,20 +69,60 @@ The system SHALL allow users to delete a trip type without affecting any existin
 - **WHEN** user confirms deletion of a trip type
 - **THEN** the trip type SHALL be removed from storage and the settings list, AND any existing trips previously created from that type SHALL remain unchanged
 
+---
 ### Requirement: Add a preset item to a trip type
 
-The system SHALL allow users to add a preset item (name and positive integer quantity) to a trip type.
+The system SHALL allow users to add a preset item to a trip type by providing either a manual non-empty name or one selected common item, together with a positive integer quantity. The two name sources SHALL be mutually exclusive, and the resulting preset item SHALL receive a unique ID and SHALL NOT contain a commonItemId relationship.
 
-#### Scenario: Successful preset addition
+#### Scenario: Successful manual preset addition
 
-- **WHEN** user enters a non-empty item name and a positive integer quantity for a given trip type and confirms
-- **THEN** a new preset item with a unique ID, the given name, and the given quantity SHALL be appended to that trip type's `presetItems` and persisted
+- **WHEN** the user enters a non-empty item name manually, leaves the common item selector empty, enters a positive integer quantity, and confirms
+- **THEN** the system SHALL append a preset item with the entered name and quantity to that trip type's presetItems and SHALL persist the change
 
-#### Scenario: Invalid input rejected
+#### Scenario: Successful common item preset addition
 
-- **WHEN** user submits a blank name or a quantity that is not a positive integer
-- **THEN** the system SHALL display an error and NOT add the preset item
+- **GIVEN** commonItems contains a common item named "護照"
+- **WHEN** the user selects "護照", enters a positive integer quantity, and confirms
+- **THEN** the system SHALL append a preset item named "護照" with the entered quantity to that trip type's presetItems and SHALL persist the change
 
+#### Scenario: Manual and common sources are mutually exclusive
+
+- **WHEN** the user enters a non-blank manual name
+- **THEN** the common item selector SHALL be disabled until the manual name is cleared
+
+#### Scenario: Common item selection disables manual entry
+
+- **WHEN** the user selects a common item
+- **THEN** the manual name input SHALL be disabled until the common item selection is cleared
+
+#### Scenario: Blank or dual source rejected
+
+- **WHEN** the user submits with both name sources empty or with both sources populated
+- **THEN** the system SHALL display an error and SHALL NOT add a preset item
+
+#### Scenario: Invalid quantity rejected
+
+- **WHEN** the user submits a quantity that is not a positive integer
+- **THEN** the system SHALL display an error and SHALL NOT add a preset item
+
+#### Scenario: Duplicate preset name rejected
+
+- **GIVEN** the trip type already contains a preset item whose normalized name is "護照"
+- **WHEN** the user attempts to add a manual or selected common item whose normalized name is "護照"
+- **THEN** the system SHALL display a duplicate-name error and SHALL NOT add another preset item to that trip type
+
+
+<!-- @trace
+source: add-common-item-settings
+updated: 2026-08-09
+code:
+  - style.css
+  - app.js
+tests:
+  - tests/trip-data-portability.test.js
+-->
+
+---
 ### Requirement: Edit a preset item
 
 The system SHALL allow users to edit the name or quantity of an existing preset item within a trip type.
@@ -87,6 +132,7 @@ The system SHALL allow users to edit the name or quantity of an existing preset 
 - **WHEN** user edits a preset item's name or quantity to valid values and saves
 - **THEN** the preset item SHALL reflect the updated values and the change SHALL be persisted
 
+---
 ### Requirement: Delete a preset item
 
 The system SHALL allow users to remove a preset item from a trip type.
@@ -96,6 +142,7 @@ The system SHALL allow users to remove a preset item from a trip type.
 - **WHEN** user confirms deletion of a preset item
 - **THEN** the preset item SHALL be removed from the trip type's `presetItems` and from storage
 
+---
 ### Requirement: Navigate to the settings page
 
 The system SHALL provide a visible control on the trip-list view that navigates to the settings page.
@@ -110,6 +157,7 @@ The system SHALL provide a visible control on the trip-list view that navigates 
 - **WHEN** user activates the back control on the settings page
 - **THEN** the system SHALL navigate back to the trip-list view (`#trips`)
 
+---
 ### Requirement: Edits to a trip type do not affect existing trips
 
 The system SHALL treat preset application as a one-time copy at trip creation; modifying or deleting preset items afterwards SHALL NOT alter items already present in previously created trips.
@@ -119,6 +167,7 @@ The system SHALL treat preset application as a one-time copy at trip creation; m
 - **WHEN** a user edits or deletes a preset item on a trip type that was previously used to create a trip
 - **THEN** the items inside that existing trip SHALL remain unchanged
 
+---
 ### Requirement: New UI reuses existing visual vocabulary
 
 The system SHALL implement the settings page, settings entry-point button, trip-type dropdowns, jump-search controls, and collapsible trip-type cards using only the existing class/token vocabulary already defined in `app.js` and `style.css` (page shell, content panel, view header, add-form, input-group, btn-primary, btn-icon, item-table, field-error, empty-state, btn-back, section-kicker), and SHALL NOT introduce a new visual language, new colour tokens, or new typography.
@@ -133,6 +182,7 @@ The system SHALL implement the settings page, settings entry-point button, trip-
 - **WHEN** the settings page is rendered with jump-search controls and collapsible cards
 - **THEN** it SHALL continue to use the same `page-shell` / `app-header` / `content-panel` / `view-header` / `add-form` / `input-group` / `btn-primary` / `btn-back` markup pattern used by the existing trip-list and trip-detail views
 
+---
 ### Requirement: Toggle trip-type card expansion
 
 The system SHALL let the user expand or collapse trip-type cards from the settings page by clicking anywhere on the card header.
@@ -152,6 +202,7 @@ The system SHALL let the user expand or collapse trip-type cards from the settin
 - **WHEN** the user clicks anywhere on a collapsed or expanded trip-type card header (excluding active edit/delete/save/cancel controls)
 - **THEN** the system SHALL toggle the card's expansion state
 
+---
 ### Requirement: Jump to an existing trip type from settings
 
 The system SHALL provide a dropdown-based type query control on the settings page that can jump directly to an existing trip-type card.
@@ -171,47 +222,57 @@ The system SHALL provide a dropdown-based type query control on the settings pag
 - **WHEN** the user activates the query action without selecting a trip type
 - **THEN** the system SHALL leave the current card expansion state unchanged
 
+---
 ### Requirement: Merge preset items from multiple trip types
 
-The system SHALL merge preset items from multiple selected trip types when creating a new trip, applying intelligent deduplication based on item name.
+The system SHALL merge preset items from multiple selected trip types when creating a new trip, applying intelligent deduplication based on normalized item name.
 
 #### Scenario: Merge items from two types with no overlap
 
-- **WHEN** user selects two trip types with completely different preset items
-- **THEN** the new trip's items SHALL contain all preset items from both types, each with `qty: 1`
+- **WHEN** the user selects two trip types with completely different preset item names
+- **THEN** the new trip's items SHALL contain all preset items from both types, each with qty equal to 1
 
-#### Scenario: Merge items with exact duplicate names
+#### Scenario: Merge items with duplicate normalized names
 
-- **WHEN** user selects two trip types where both have a preset item with the exact same name (e.g., "護照" in both types)
-- **THEN** the new trip's items SHALL contain only one copy of that item with `qty: 1`, preserving the first occurrence
+- **WHEN** the user selects two trip types where both have a preset item with the same normalized name, such as "護照" and "護照 "
+- **THEN** the new trip's items SHALL contain only one copy of that item with qty equal to 1, preserving the first occurrence
 
-#### Scenario: Chinese text uses strict comparison
+#### Scenario: Chinese text comparison
 
-- **WHEN** deduplicating preset items containing Chinese characters
-- **THEN** the system SHALL use strict equality comparison (`===`) where "護照" matches "護照" but "護照" does not match "護照 " (with trailing space)
+- **WHEN** deduplicating preset items named "護照" and "護照 "
+- **THEN** the system SHALL treat the names as duplicates after trimming outer whitespace and SHALL preserve the first occurrence's display name
 
-#### Scenario: English text uses case-insensitive comparison
+#### Scenario: English text comparison
 
-- **WHEN** deduplicating preset items containing only English/ASCII characters
-- **THEN** the system SHALL use case-insensitive and trimmed comparison where "Passport", "passport", and " PASSPORT " all match and are deduplicated
+- **WHEN** deduplicating preset items named "Passport", "passport", and " PASSPORT "
+- **THEN** the system SHALL treat the names as duplicates after trimming outer whitespace and applying locale-aware lowercase normalization
 
-#### Scenario: Mixed text uses strict comparison
+#### Scenario: Mixed text comparison
 
-- **WHEN** deduplicating preset items containing both Chinese and English characters
-- **THEN** the system SHALL use strict equality comparison (same as Chinese-only text)
+- **WHEN** deduplicating preset items containing both Chinese and English characters with equivalent outer whitespace and letter case
+- **THEN** the system SHALL apply the same trimming and locale-aware lowercase normalization used for all item names
 
 #### Scenario: Merged items preserve original name formatting
 
 - **WHEN** duplicate items are detected and removed
-- **THEN** the system SHALL preserve the exact name formatting (capitalization, spacing) of the first occurrence
+- **THEN** the system SHALL preserve the exact name formatting of the first occurrence
 
 #### Scenario: Merged items default to quantity 1
 
-- **WHEN** multiple types have the same item with different quantities (e.g., "毛巾 × 2" and "毛巾 × 3")
-- **THEN** the merged item SHALL have `qty: 1` regardless of the source quantities
+- **WHEN** multiple types have the same normalized item name with different quantities, such as "毛巾 × 2" and "毛巾 × 3"
+- **THEN** the merged item SHALL have qty equal to 1 regardless of the source quantities
 
-#### Scenario: Items merged in selection order
+#### Scenario: Items merge in selection order
 
-- **WHEN** user selects types in a specific order
+- **WHEN** the user selects types in a specific order
 - **THEN** preset items SHALL be processed in that order, with earlier types' items appearing first in the deduplicated result
 
+<!-- @trace
+source: add-common-item-settings
+updated: 2026-08-09
+code:
+  - style.css
+  - app.js
+tests:
+  - tests/trip-data-portability.test.js
+-->

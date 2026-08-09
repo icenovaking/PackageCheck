@@ -1,0 +1,28 @@
+﻿## 1. State and common-item settings
+
+- [x] 1.1 Implement the Top-level catalog with copy-on-select and Keep common item selection copy-based by adding a persisted commonItems collection, defaulting missing legacy state to an empty array, and keeping selected records copied into destination lists without commonItemId; verify with browser reload and a manual assertion that renaming or deleting a common item leaves existing trips and trip-type preset items unchanged.
+- [x] 1.2 Implement Manage common items with the Common Items settings page, including create, list, rename, delete confirmation, empty state, and field errors; verify manually that each CRUD action persists after reload and that deleting a common item does not remove destination records.
+- [x] 1.3 Implement Enforce unique common item names and Name-based uniqueness with ID-based import identity for create, rename, and same-list additions using trimmed locale-aware lowercase comparison; verify manual cases for 護照 versus 護照 with outer whitespace and Passport versus passport, including unchanged state after rejection.
+- [x] 1.4 Implement Provide common item settings navigation beside the existing trip-type settings control and a back link to trips while preserving existing route behavior; verify manually that both controls navigate to the expected hash routes and work with browser back navigation.
+
+## 2. Shared item-entry behavior
+
+- [x] 2.1 Implement the Shared mutually-exclusive source input contract and Share common item options with item-entry forms for both actual-trip and trip-type preset forms: manual text disables the selector, selection disables manual text, clearing re-enables the other source, empty catalogs keep manual entry usable, and submit validation rejects empty or dual sources; verify both forms manually and with focused DOM/helper tests if the shared binding is extracted.
+- [x] 2.2 Implement Add an item to a trip so a selected common item copies its name, a manually entered item remains local, quantity stays destination-specific, and an existing normalized name is blocked without mutating the trip; verify with manual browser flows for manual addition, selector addition, mutual disabling, invalid quantities, and duplicate names.
+- [x] 2.3 Implement Add a preset item to a trip type with the same copy-based selector, explicit manual-entry behavior, positive-quantity validation, and same-trip-type normalized-name blocking; verify with manual browser flows for manual addition, selector addition, dual-source rejection, invalid quantities, and duplicate names.
+- [x] 2.4 Implement Keep common item creation explicit so manual entries in trips and trip-type preset lists never create commonItems automatically; verify by adding manual entries and asserting that the Common Items settings page and persisted state contain no new catalog record.
+- [x] 2.5 Preserve and verify Merge preset items from multiple trip types using normalized-name deduplication, first-occurrence display formatting, selection order, and qty equal to 1; verify with the existing trip-creation behavior and focused assertions for Chinese, English, and mixed names.
+
+## 3. Data portability
+
+- [x] 3.1 Implement the Versioned portability with backward-compatible imports by exporting version 2 with commonItems, accepting version 1 with missing commonItems as an empty array, and preserving the existing non-destructive state rollback behavior; verify through node --test tests/trip-data-portability.test.js and explicit version 1/version 2 fixtures.
+- [x] 3.2 Implement Export the complete current data set so data.commonItems contains every current common item while trips, tripTypes, item states, and the download behavior remain intact; verify the buildExportPayload and downloadExportPayload tests.
+- [x] 3.3 Implement Accept only a supported data package with validation for common item IDs, names, quantities in existing records, supported versions, duplicate IDs, duplicate normalized names, and unresolved trip-type references; verify rejection tests assert no state or localStorage mutation.
+- [x] 3.4 Implement Merge imported records by ID so trips and trip types retain ID-only merge semantics while commonItems skip local ID or normalized-name conflicts and preserve local records; verify added/skipped counts and repeated-import idempotence in node --test tests/trip-data-portability.test.js.
+- [x] 3.5 Implement Preserve imported relationships and item state for trips, trip types, preset items, checklist states, and common item IDs/names without introducing commonItemId references; verify round-trip assertions for every persisted field.
+- [x] 3.6 Implement Persist successful imports and report the result with added and skipped counts for trips, trip types, and common items, including restoration when localStorage persistence fails; verify the existing importDataFile tests and new common-item count assertions.
+
+## 4. UI styling and verification
+
+- [x] 4.1 Implement Reuse existing vanilla-JS views and persistence by extending the established page-shell, view-header, add-form, input-group, select-input, item-table, field-error, empty-state, and responsive layout vocabulary in app.js and style.css; verify desktop and narrow viewport manual checks for the common-items page and both item-entry forms.
+- [x] 4.2 Review the Observable behavior, Data shape, Failure modes, Acceptance criteria, and Scope boundaries from design.md against the implemented behavior; review all requirements in common-item-settings, item-management, trip-type-presets, and trip-data-portability, run node --test tests/trip-data-portability.test.js, and confirm spectra analyze and spectra validate report no Critical or Warning findings.

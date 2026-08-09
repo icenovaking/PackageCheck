@@ -6,16 +6,17 @@
 // ─── State (1.3) ─────────────────────────────────────────────────────────────
 const STORAGE_KEY = "packcheck_data";
 const DATA_EXPORT_FORMAT = "packcheck-data";
-const DATA_EXPORT_VERSION = 1;
+const DATA_EXPORT_VERSION = 2;
 
-/** @type {{ trips: Array<{id:string, name:string, createdAt:string, items:Array, typeId?:string|null, typeIds?:string[]|null, typeDisplay?:string|null}>, tripTypes: Array<{id:string, name:string, createdAt:string, presetItems:Array<{id:string,name:string,qty:number}>}> }} */
-let state = { trips: [], tripTypes: [] };
+/** @type {{ trips: Array<{id:string, name:string, createdAt:string, items:Array, typeId?:string|null, typeIds?:string[]|null, typeDisplay?:string|null}>, tripTypes: Array<{id:string, name:string, createdAt:string, presetItems:Array<{id:string,name:string,qty:number}>}>, commonItems: Array<{id:string,name:string}> }} */
+let state = { trips: [], tripTypes: [], commonItems: [] };
 let storageAvailable = true;
 const uiState = {
   expandedTripId: null,
   expandedTypeId: null,
   editingTypeId: null,
   editingTripId: null,
+  editingCommonItemId: null,
   pendingCardFocus: null,
 };
 
@@ -27,6 +28,9 @@ function buildExportPayload(currentState) {
     data: {
       trips: currentState.trips,
       tripTypes: currentState.tripTypes,
+      commonItems: Array.isArray(currentState.commonItems)
+        ? currentState.commonItems
+        : [],
     },
   };
 }
@@ -88,6 +92,24 @@ function requireUniqueImportIds(records, label) {
     ids.add(record.id);
   });
   return ids;
+}
+
+function requireUniqueImportNames(records, label) {
+  const names = new Set();
+  records.forEach((record, index) => {
+    requireImportString(record?.name, `${label}[${index}].name`);
+    const normalizedName = normalizeItemName(record.name);
+    if (names.has(normalizedName)) {
+      importValidationError(`${label}包含重複的名稱。`);
+    }
+    names.add(normalizedName);
+  });
+  return names;
+}
+
+function validateImportCommonItem(item, path) {
+  requireImportString(item?.id, `${path}.id`);
+  requireImportString(item?.name, `${path}.name`);
 }
 
 function validateImportPresetItem(item, path) {
@@ -186,6 +208,10 @@ function normalizeImportPayload(payload) {
           returnChecked: item.returnChecked,
         })),
       })),
+      commonItems: payload.data.commonItems.map((item) => ({
+        id: item.id,
+        name: item.name,
+      })),
     },
   };
 }
@@ -204,7 +230,7 @@ function parseImportPayload(rawText, currentState = { trips: [], tripTypes: [] }
   if (payload.format !== DATA_EXPORT_FORMAT) {
     importValidationError("格式不受支援。 ");
   }
-  if (payload.version !== DATA_EXPORT_VERSION) {
+  if (payload.version !== 1 && payload.version !== DATA_EXPORT_VERSION) {
     importValidationError("版本不受支援。 ");
   }
   requireImportString(payload.exportedAt, "exportedAt");
@@ -213,6 +239,11 @@ function parseImportPayload(rawText, currentState = { trips: [], tripTypes: [] }
   }
   requireImportArray(payload.data?.tripTypes, "data.tripTypes");
   requireImportArray(payload.data?.trips, "data.trips");
+  const commonItems =
+    payload.version === DATA_EXPORT_VERSION
+      ? payload.data?.commonItems
+      : [];
+  requireImportArray(commonItems, "data.commonItems");
 
   const importedTypeIds = requireUniqueImportIds(
     payload.data.tripTypes,
@@ -228,12 +259,23 @@ function parseImportPayload(rawText, currentState = { trips: [], tripTypes: [] }
   payload.data.tripTypes.forEach((type, index) => {
     validateImportTripType(type, index);
   });
+  requireUniqueImportIds(commonItems, "data.commonItems");
+  requireUniqueImportNames(commonItems, "data.commonItems");
+  commonItems.forEach((item, index) => {
+    validateImportCommonItem(item, `data.commonItems[${index}]`);
+  });
   requireUniqueImportIds(payload.data.trips, "data.trips");
   payload.data.trips.forEach((trip, index) => {
     validateImportTrip(trip, index, availableTypeIds);
   });
 
-  return normalizeImportPayload(payload);
+  return normalizeImportPayload({
+    ...payload,
+    data: {
+      ...payload.data,
+      commonItems,
+    },
+  });
 }
 
 function mergeImportedState(currentState, importedPayload) {
@@ -241,14 +283,24 @@ function mergeImportedState(currentState, importedPayload) {
     ? currentState.tripTypes
     : [];
   const localTrips = Array.isArray(currentState.trips) ? currentState.trips : [];
+  const localCommonItems = Array.isArray(currentState.commonItems)
+    ? currentState.commonItems
+    : [];
   const localTypeIds = new Set(localTripTypes.map((type) => type.id));
   const localTripIds = new Set(localTrips.map((trip) => trip.id));
+  const localCommonItemIds = new Set(localCommonItems.map((item) => item.id));
+  const localCommonItemNames = new Set(
+    localCommonItems.map((item) => normalizeItemName(item.name)),
+  );
   const importedTripTypes = importedPayload.data.tripTypes;
   const importedTrips = importedPayload.data.trips;
+  const importedCommonItems = importedPayload.data.commonItems;
   const tripTypes = [...localTripTypes];
   const trips = [...localTrips];
+  const commonItems = [...localCommonItems];
   let skippedTripTypes = 0;
   let skippedTrips = 0;
+  let skippedCommonItems = 0;
 
   importedTripTypes.forEach((type) => {
     if (localTypeIds.has(type.id)) {
@@ -268,12 +320,28 @@ function mergeImportedState(currentState, importedPayload) {
     trips.push(trip);
   });
 
+  importedCommonItems.forEach((item) => {
+    const normalizedName = normalizeItemName(item.name);
+    if (
+      localCommonItemIds.has(item.id) ||
+      localCommonItemNames.has(normalizedName)
+    ) {
+      skippedCommonItems += 1;
+      return;
+    }
+    localCommonItemIds.add(item.id);
+    localCommonItemNames.add(normalizedName);
+    commonItems.push(item);
+  });
+
   return {
-    state: { trips, tripTypes },
+    state: { trips, tripTypes, commonItems },
     addedTrips: importedTrips.length - skippedTrips,
     addedTripTypes: importedTripTypes.length - skippedTripTypes,
+    addedCommonItems: importedCommonItems.length - skippedCommonItems,
     skippedTrips,
     skippedTripTypes,
+    skippedCommonItems,
   };
 }
 
@@ -354,6 +422,7 @@ const ICONS = {
 // ─── Example Data ────────────────────────────────────────────────────────────
 
 const DEMO_DATA = {
+  commonItems: [],
   tripTypes: [
     {
       id: "demo-type-travel",
@@ -428,13 +497,16 @@ function loadState() {
       if (!Array.isArray(state.tripTypes)) {
         state.tripTypes = [];
       }
+      if (!Array.isArray(state.commonItems)) {
+        state.commonItems = [];
+      }
       // Migrate legacy typeId to typeIds + typeDisplay
       migrateTrips();
     } else {
       throw new Error("unexpected shape");
     }
   } catch (_) {
-    state = { trips: [], tripTypes: [] };
+    state = { trips: [], tripTypes: [], commonItems: [] };
     showStorageWarning("偵測到損毀的儲存資料，已重設為空白清單。");
   }
 }
@@ -508,7 +580,7 @@ function setDataTransferStatus(app, message, tone = "success") {
 }
 
 function formatDataTransferImportResult(result) {
-  return `匯入完成：新增 ${result.addedTrips} 個旅程、${result.addedTripTypes} 個旅程類型；略過 ${result.skippedTrips} 個重複旅程、${result.skippedTripTypes} 個重複旅程類型。`;
+  return `匯入完成：新增 ${result.addedTrips} 個旅程、${result.addedTripTypes} 個旅程類型、${result.addedCommonItems} 個常用物品；略過 ${result.skippedTrips} 個重複旅程、${result.skippedTripTypes} 個重複旅程類型、${result.skippedCommonItems} 個重複常用物品。`;
 }
 
 async function importDataFile(file, app) {
@@ -655,17 +727,11 @@ function buildTripManager(trip, view) {
   const scopeId = `${view}-${trip.id}`;
   return `
     <form class="add-form surface-panel js-add-item-form" data-trip-id="${esc(trip.id)}" data-view="${view}" novalidate>
-      <div class="input-group input-group-wide">
-        <label for="input-item-name-${esc(scopeId)}">物品名稱</label>
-        <input
-          type="text"
-          id="input-item-name-${esc(scopeId)}"
-          class="js-item-name-input"
-          placeholder="物品名稱（例如：護照）"
-          autocomplete="off"
-          maxlength="100"
-        />
-      </div>
+      ${buildItemSourceMarkup({
+        scopeId,
+        manualInputClass: "js-item-name-input",
+        selectClass: "js-common-item-select",
+      })}
       <div class="input-group input-group-compact">
         <label for="input-item-qty-${esc(scopeId)}">數量</label>
         <input
@@ -696,8 +762,101 @@ function rerenderTripView(tripId, view) {
   renderTripList(document.getElementById("app"));
 }
 
+function buildItemSourceMarkup({
+  scopeId,
+  manualInputClass = "",
+  selectClass = "",
+}) {
+  const commonItems = Array.isArray(state.commonItems) ? state.commonItems : [];
+  const manualId = `input-item-name-${scopeId}`;
+  const selectId = `select-common-item-${scopeId}`;
+
+  return `
+    <div class="input-group input-group-wide item-source-manual">
+      <label for="${esc(manualId)}">手動輸入物品</label>
+      <input
+        type="text"
+        id="${esc(manualId)}"
+        class="js-manual-item-input ${esc(manualInputClass)}"
+        placeholder="物品名稱（例如：護照）"
+        autocomplete="off"
+        maxlength="100"
+      />
+    </div>
+    <div class="input-group input-group-wide item-source-common">
+      <label for="${esc(selectId)}">選擇常用物品</label>
+      <select
+        id="${esc(selectId)}"
+        class="select-input js-common-item-select ${esc(selectClass)}"${commonItems.length === 0 ? " disabled" : ""}
+      >
+        <option value="">${commonItems.length === 0 ? "尚無常用物品" : "選擇常用物品"}</option>
+        ${commonItems
+          .map(
+            (item) =>
+              `<option value="${esc(item.id)}">${esc(item.name)}</option>`,
+          )
+          .join("")}
+      </select>
+      <span class="item-source-hint">手動輸入與下拉選單二選一</span>
+    </div>`;
+}
+
+function resolveItemSource({ manualName = "", commonItemId = "" }, commonItems) {
+  const name = String(manualName).trim();
+  const selectedId = String(commonItemId).trim();
+
+  if (name && selectedId) {
+    return { error: "手動輸入與常用物品只能選一種。" };
+  }
+  if (!name && !selectedId) {
+    return { error: "請輸入物品名稱或選擇常用物品。" };
+  }
+  if (selectedId) {
+    const selectedItem = (Array.isArray(commonItems) ? commonItems : []).find(
+      (item) => item.id === selectedId,
+    );
+    if (!selectedItem) {
+      return { error: "所選常用物品不存在，請重新選擇。" };
+    }
+    return { name: selectedItem.name };
+  }
+  return { name };
+}
+
+function bindMutuallyExclusiveItemSource(form) {
+  const manualInput = form.querySelector(".js-manual-item-input");
+  const commonSelect = form.querySelector(".js-common-item-select");
+  if (!manualInput || !commonSelect) return;
+
+  const syncState = () => {
+    const hasManualName = manualInput.value.trim() !== "";
+    const hasCommonItem = commonSelect.value !== "";
+
+    if (hasManualName) {
+      commonSelect.value = "";
+      commonSelect.disabled = true;
+      manualInput.disabled = false;
+      return;
+    }
+    if (hasCommonItem) {
+      manualInput.value = "";
+      manualInput.disabled = true;
+      commonSelect.disabled = false;
+      return;
+    }
+    manualInput.disabled = false;
+    commonSelect.disabled =
+      !Array.isArray(state.commonItems) || state.commonItems.length === 0;
+  };
+
+  manualInput.addEventListener("input", syncState);
+  commonSelect.addEventListener("change", syncState);
+  syncState();
+}
+
 function bindTripItemForms(app) {
   app.querySelectorAll(".js-add-item-form").forEach((form) => {
+    bindMutuallyExclusiveItemSource(form);
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       const tripId = form.dataset.tripId;
@@ -706,15 +865,31 @@ function bindTripItemForms(app) {
       if (!trip) return;
 
       const nameInput = form.querySelector(".js-item-name-input");
+      const commonSelect = form.querySelector(".js-common-item-select");
       const qtyInput = form.querySelector(".js-item-qty-input");
       const errEl = app.querySelector(
         `.js-item-error[data-trip-id="${esc(tripId)}"][data-view="${esc(view)}"]`,
       );
-      const name = nameInput.value.trim();
+      const source = resolveItemSource(
+        {
+          manualName: nameInput.value,
+          commonItemId: commonSelect?.value,
+        },
+        state.commonItems,
+      );
       const qty = parseInt(qtyInput.value, 10);
 
-      if (!name) {
-        errEl.textContent = "請輸入物品名稱。";
+      if (source.error) {
+        errEl.textContent = source.error;
+        errEl.classList.remove("hidden");
+        (nameInput.value.trim() ? commonSelect : nameInput)?.focus();
+        return;
+      }
+
+      const name = source.name;
+
+      if (hasDuplicateItemName(trip.items, name)) {
+        errEl.textContent = "這個旅程已有相同名稱的物品。";
         errEl.classList.remove("hidden");
         nameInput.focus();
         return;
@@ -844,21 +1019,24 @@ function migrateTrips() {
 }
 
 /**
- * Check if two item names are the same for deduplication purposes.
- * - Chinese text: strict exact match (===)
- * - English text: case-insensitive + trimmed
- * - Mixed text: treat as Chinese (strict)
+ * Normalize a user-facing item name for same-list duplicate checks.
+ * Outer whitespace and letter case are insignificant; internal whitespace and
+ * punctuation remain part of the name.
  */
+function normalizeItemName(name) {
+  return String(name).trim().toLocaleLowerCase();
+}
+
+function hasDuplicateItemName(records, name, excludedId = null) {
+  const normalizedName = normalizeItemName(name);
+  return records.some(
+    (record) =>
+      record.id !== excludedId && normalizeItemName(record.name) === normalizedName,
+  );
+}
+
 function isSameItem(name1, name2) {
-  const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
-
-  // Any Chinese characters → strict comparison
-  if (hasChinese(name1) || hasChinese(name2)) {
-    return name1 === name2;
-  }
-
-  // Pure English/ASCII → case-insensitive + trimmed
-  return name1.trim().toLowerCase() === name2.trim().toLowerCase();
+  return normalizeItemName(name1) === normalizeItemName(name2);
 }
 
 /**
@@ -922,6 +1100,8 @@ function router() {
     renderTripList(app);
   } else if (hash === "#settings") {
     renderSettings(app);
+  } else if (hash === "#common-items") {
+    renderCommonItems(app);
   } else if (hash.startsWith("#trip/")) {
     const id = hash.slice("#trip/".length);
     renderTripDetail(app, id);
@@ -929,6 +1109,13 @@ function router() {
     // Unknown route → redirect home (3.3 handles back button naturally via hash)
     location.replace("#trips");
   }
+}
+
+function buildSettingsNavigationMarkup(activeRoute = "") {
+  const link = (href, label) =>
+    `<a href="${href}" class="header-chip${activeRoute === href ? " is-active" : ""}"${activeRoute === href ? ' aria-current="page"' : ""}>${label}</a>`;
+
+  return `<nav class="settings-nav" aria-label="設定頁面">${link("#settings", "類型設定")}${link("#common-items", "常用物品")}</nav>`;
 }
 
 // Attach hashchange so every navigation (including back button) runs router (3.2)
@@ -974,9 +1161,7 @@ function renderTripList(app) {
               <p class="section-kicker">My Trips</p>
               <h2>我的旅程</h2>
             </div>
-            <a href="#settings" class="header-chip" aria-label="開啟旅程類型設定">
-              類型設定
-            </a>
+            ${buildSettingsNavigationMarkup()}
           </div>
 
           <form id="form-trip-jump" class="jump-search-form surface-panel" novalidate>
@@ -1415,6 +1600,11 @@ function bindItemActions(app, trip, rerender) {
         const newName = row.querySelector(".edit-name-input").value.trim();
         const newQty = parseInt(row.querySelector(".edit-qty-input").value, 10);
         if (!newName || !Number.isInteger(newQty) || newQty < 1) return;
+        if (hasDuplicateItemName(trip.items, newName, item.id)) {
+          window.alert("這個旅程已有相同名稱的物品。");
+          row.querySelector(".edit-name-input").focus();
+          return;
+        }
         item.name = newName;
         item.qty = newQty;
         saveState(); // 2.3
@@ -1439,6 +1629,223 @@ function updateRowClass(app, item) {
     "fully-checked",
     item.departureChecked && item.returnChecked,
   );
+}
+
+// ─── Settings View — Common Items ────────────────────────────────────────────
+
+function renderCommonItems(app) {
+  const { commonItems } = state;
+  if (
+    uiState.editingCommonItemId &&
+    !commonItems.some((item) => item.id === uiState.editingCommonItemId)
+  ) {
+    uiState.editingCommonItemId = null;
+  }
+
+  const itemsContent =
+    commonItems.length === 0
+      ? `
+        <div class="empty-state">
+          <div class="empty-icon">${icon("settings")}</div>
+          <h3>還沒有常用物品</h3>
+          <p>先建立常用物品，新增旅程或旅程類型預設物品時就能從下拉選單快速帶入。</p>
+        </div>`
+      : `
+        <div class="item-table-wrap common-item-table-wrap">
+          <table class="item-table common-item-table" aria-label="常用物品清單">
+            <thead>
+              <tr>
+                <th class="col-name">物品</th>
+                <th class="col-actions"></th>
+              </tr>
+            </thead>
+            <tbody>${commonItems.map(buildCommonItemRow).join("")}</tbody>
+          </table>
+        </div>`;
+
+  app.innerHTML = `
+    <div class="page-shell">
+      <header class="app-header">
+        <div class="brand-lockup">
+          <div class="brand-mark">${icon("brand")}</div>
+          <div>
+            <p class="eyebrow">Travel Packing Companion</p>
+            <h1>PackCheck</h1>
+          </div>
+        </div>
+        <div class="header-chip">旅遊行李檢查</div>
+      </header>
+      <main class="page-main view-settings">
+        <section class="content-panel">
+          <div class="view-header">
+            <div>
+              <a href="#trips" class="btn-back">${icon("back")}返回旅程</a>
+              <p class="section-kicker">Settings</p>
+              <h2>常用物品設定</h2>
+            </div>
+            ${buildSettingsNavigationMarkup("#common-items")}
+          </div>
+
+          <p class="settings-hint">建立可重複使用的物品名稱；選取後會複製到當下的清單，不會回頭修改既有資料。</p>
+
+          <form id="form-add-common-item" class="add-form surface-panel" novalidate>
+            <div class="input-group input-group-grow">
+              <label for="input-common-item-name">物品名稱</label>
+              <input
+                type="text"
+                id="input-common-item-name"
+                placeholder="輸入常用物品名稱（例如：護照）"
+                autocomplete="off"
+                maxlength="100"
+              />
+            </div>
+            <button type="submit" class="btn-primary">
+              ${icon("plus")}
+              <span>新增物品</span>
+            </button>
+          </form>
+          <div id="common-item-error" class="field-error hidden" role="alert"></div>
+
+          ${itemsContent}
+        </section>
+      </main>
+    </div>`;
+
+  bindCommonItemActions(app);
+}
+
+function buildCommonItemRow(item) {
+  const editing = uiState.editingCommonItemId === item.id;
+  if (editing) {
+    return `
+      <tr class="item-row common-item-row is-editing" data-id="${esc(item.id)}">
+        <td class="col-name">
+          <input type="text" class="edit-name-input js-edit-common-item-input" value="${esc(item.name)}" maxlength="100" aria-label="物品名稱" />
+        </td>
+        <td class="col-actions edit-actions-cell">
+          <button type="button" class="btn-icon btn-icon-save js-save-common-item" data-id="${esc(item.id)}" aria-label="儲存 ${esc(item.name)}">
+            ${icon("check")}
+          </button>
+          <button type="button" class="btn-icon btn-icon-cancel js-cancel-common-item" data-id="${esc(item.id)}" aria-label="取消編輯 ${esc(item.name)}">
+            ${icon("x")}
+          </button>
+        </td>
+      </tr>`;
+  }
+
+  return `
+    <tr class="item-row common-item-row" data-id="${esc(item.id)}">
+      <td class="col-name item-name">
+        <div class="item-primary">
+          <span class="item-field-label">物品</span>
+          <div class="table-item-name">${esc(item.name)}</div>
+        </div>
+      </td>
+      <td class="col-actions">
+        <div class="action-group">
+          <button type="button" class="btn-icon btn-icon-edit js-edit-common-item" data-id="${esc(item.id)}" aria-label="編輯 ${esc(item.name)}">
+            ${icon("edit")}
+            <span class="btn-icon-text">編輯</span>
+          </button>
+          <button type="button" class="btn-icon btn-icon-danger js-delete-common-item" data-id="${esc(item.id)}" aria-label="刪除 ${esc(item.name)}">
+            ${icon("trash")}
+            <span class="btn-icon-text">刪除</span>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+}
+
+function bindCommonItemActions(app) {
+  const rerender = () => renderCommonItems(document.getElementById("app"));
+
+  document
+    .getElementById("form-add-common-item")
+    .addEventListener("submit", (e) => {
+      e.preventDefault();
+      const input = document.getElementById("input-common-item-name");
+      const errEl = document.getElementById("common-item-error");
+      const name = input.value.trim();
+      if (!name) {
+        errEl.textContent = "請輸入物品名稱。";
+        errEl.classList.remove("hidden");
+        input.focus();
+        return;
+      }
+      if (hasDuplicateItemName(state.commonItems, name)) {
+        errEl.textContent = "已有相同名稱的常用物品。";
+        errEl.classList.remove("hidden");
+        input.focus();
+        return;
+      }
+      errEl.classList.add("hidden");
+      state.commonItems.push({ id: genId(), name });
+      saveState();
+      input.value = "";
+      uiState.editingCommonItemId = null;
+      rerender();
+    });
+
+  app.querySelectorAll(".js-edit-common-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      uiState.editingCommonItemId = btn.dataset.id;
+      rerender();
+    });
+  });
+
+  app.querySelectorAll(".js-save-common-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const item = state.commonItems.find((entry) => entry.id === btn.dataset.id);
+      const row = app.querySelector(
+        `.common-item-row[data-id="${esc(btn.dataset.id)}"]`,
+      );
+      const input = row?.querySelector(".js-edit-common-item-input");
+      if (!item || !input) return;
+      const name = input.value.trim();
+      if (!name) {
+        input.focus();
+        return;
+      }
+      if (hasDuplicateItemName(state.commonItems, name, item.id)) {
+        window.alert("已有相同名稱的常用物品。");
+        input.focus();
+        return;
+      }
+      item.name = name;
+      uiState.editingCommonItemId = null;
+      saveState();
+      rerender();
+    });
+  });
+
+  app.querySelectorAll(".js-cancel-common-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      uiState.editingCommonItemId = null;
+      rerender();
+    });
+  });
+
+  app.querySelectorAll(".js-delete-common-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const item = state.commonItems.find((entry) => entry.id === btn.dataset.id);
+      if (!item) return;
+      if (!confirm(`確定要刪除常用物品「${item.name}」？`)) return;
+      state.commonItems = state.commonItems.filter(
+        (entry) => entry.id !== btn.dataset.id,
+      );
+      if (uiState.editingCommonItemId === btn.dataset.id) {
+        uiState.editingCommonItemId = null;
+      }
+      saveState();
+      rerender();
+    });
+  });
+
+  const editingInput = app.querySelector(".js-edit-common-item-input");
+  if (editingInput) {
+    editingInput.focus();
+    editingInput.select();
+  }
 }
 
 // ─── Settings View — Trip Type Presets ───────────────────────────────────────
@@ -1493,6 +1900,7 @@ function renderSettings(app) {
               <p class="section-kicker">Settings</p>
               <h2>旅程類型設定</h2>
             </div>
+            ${buildSettingsNavigationMarkup("#settings")}
           </div>
 
           <p class="settings-hint">套用為預設項目，不會回頭修改現有旅程。</p>
@@ -1627,17 +2035,11 @@ function buildTripTypeCard(type) {
           ? `
             <div class="trip-type-card-panel">
               <form class="add-form surface-panel preset-add-form js-add-preset-form" data-type-id="${esc(type.id)}" novalidate>
-                <div class="input-group input-group-wide">
-                  <label for="input-preset-name-${esc(type.id)}">預設物品名稱</label>
-                  <input
-                    type="text"
-                    id="input-preset-name-${esc(type.id)}"
-                    class="js-preset-name-input"
-                    placeholder="物品名稱（例如：護照）"
-                    autocomplete="off"
-                    maxlength="100"
-                  />
-                </div>
+                ${buildItemSourceMarkup({
+                  scopeId: `preset-${type.id}`,
+                  manualInputClass: "js-preset-name-input",
+                  selectClass: "js-preset-common-item-select",
+                })}
                 <div class="input-group input-group-compact">
                   <label for="input-preset-qty-${esc(type.id)}">數量</label>
                   <input
@@ -1805,20 +2207,35 @@ function bindSettingsActions(app) {
 
   // Add preset item to a type
   app.querySelectorAll(".js-add-preset-form").forEach((form) => {
+    bindMutuallyExclusiveItemSource(form);
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       const typeId = form.dataset.typeId;
       const type = state.tripTypes.find((t) => t.id === typeId);
       if (!type) return;
       const nameInput = form.querySelector(".js-preset-name-input");
+      const commonSelect = form.querySelector(".js-preset-common-item-select");
       const qtyInput = form.querySelector(".js-preset-qty-input");
       const errEl = app.querySelector(
         `.js-preset-error[data-type-id="${esc(typeId)}"]`,
       );
-      const name = nameInput.value.trim();
+      const source = resolveItemSource(
+        {
+          manualName: nameInput.value,
+          commonItemId: commonSelect?.value,
+        },
+        state.commonItems,
+      );
       const qty = parseInt(qtyInput.value, 10);
-      if (!name) {
-        errEl.textContent = "請輸入物品名稱。";
+      if (source.error) {
+        errEl.textContent = source.error;
+        errEl.classList.remove("hidden");
+        (nameInput.value.trim() ? commonSelect : nameInput)?.focus();
+        return;
+      }
+      const name = source.name;
+      if (hasDuplicateItemName(type.presetItems, name)) {
+        errEl.textContent = "這個旅程類型已有相同名稱的預設物品。";
         errEl.classList.remove("hidden");
         nameInput.focus();
         return;
@@ -1895,6 +2312,11 @@ function bindSettingsActions(app) {
             10,
           );
           if (!newName || !Number.isInteger(newQty) || newQty < 1) return;
+          if (hasDuplicateItemName(type.presetItems, newName, preset.id)) {
+            window.alert("這個旅程類型已有相同名稱的預設物品。");
+            row.querySelector(".edit-name-input").focus();
+            return;
+          }
           preset.name = newName;
           preset.qty = newQty;
           uiState.expandedTypeId = typeId;
