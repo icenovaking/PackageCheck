@@ -270,6 +270,20 @@ a.header-chip:hover {
   box-shadow: 0 4px 12px rgba(16, 37, 50, 0.08);
 }
 
+.settings-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.settings-nav .header-chip.is-active {
+  color: var(--heading);
+  background: rgba(47, 108, 121, 0.12);
+  border-color: rgba(47, 108, 121, 0.28);
+}
+
 .page-main {
   display: grid;
   grid-template-columns: 1fr;
@@ -471,6 +485,18 @@ a.header-chip:hover {
   border-color: rgba(47, 108, 121, 0.56);
   box-shadow: 0 0 0 4px rgba(47, 108, 121, 0.12);
   background: rgba(255, 255, 255, 0.94);
+}
+
+.add-form input:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  background: rgba(22, 57, 75, 0.05);
+}
+
+.item-source-hint {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
 }
 
 .field-error {
@@ -1612,6 +1638,14 @@ a.header-chip:hover {
   width: 8rem;
 }
 
+.common-item-table .col-actions {
+  width: 10rem;
+}
+
+.common-item-table-wrap {
+  margin-top: 1.25rem;
+}
+
 @media (max-width: 768px) {
   .btn-icon-settings {
     align-self: flex-end;
@@ -1624,6 +1658,16 @@ a.header-chip:hover {
 }
 
 @media (max-width: 540px) {
+  .settings-nav {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .settings-nav .header-chip {
+    flex: 1 1 8rem;
+    text-align: center;
+  }
+
   .preset-table .col-actions {
     width: 28%;
   }

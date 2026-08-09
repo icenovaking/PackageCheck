@@ -1,10 +1,6 @@
-# trip-data-portability Specification
+﻿# trip-data-portability Delta
 
-## Purpose
-
-Defines browser-only export and import of the complete PackCheck data set so users can back up, move, and share trip plans without a server.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Export the complete current data set
 
@@ -23,18 +19,6 @@ The JSON package SHALL use the format identifier packcheck-data and version 2, a
 - **WHEN** the user exports the data
 - **THEN** the package SHALL contain the trip under data.trips, the trip type under data.tripTypes, and the common item under data.commonItems
 
-
-<!-- @trace
-source: add-common-item-settings
-updated: 2026-08-09
-code:
-  - style.css
-  - app.js
-tests:
-  - tests/trip-data-portability.test.js
--->
-
----
 ### Requirement: Accept only a supported data package
 
 The system SHALL accept an import file only when its text is valid JSON with format equal to packcheck-data, version equal to 1 or 2, data.trips as an array, data.tripTypes as an array, valid required record fields, positive integer quantities, boolean item check states, and resolvable trip type references.
@@ -58,18 +42,6 @@ The system SHALL reject unreadable files, malformed JSON, unsupported format val
 - **WHEN** the user selects a file with malformed JSON, an invalid package field, or duplicate common item IDs or normalized names
 - **THEN** the system SHALL display an actionable error and SHALL NOT modify the current state or localStorage value
 
-
-<!-- @trace
-source: add-common-item-settings
-updated: 2026-08-09
-code:
-  - style.css
-  - app.js
-tests:
-  - tests/trip-data-portability.test.js
--->
-
----
 ### Requirement: Merge imported records by ID
 
 The system SHALL merge imported trip types into the current tripTypes collection only when the imported trip type ID is absent locally.
@@ -106,18 +78,6 @@ The system SHALL NOT deduplicate trips or trip types by name. Common item names 
 - **WHEN** the user imports the same package again
 - **THEN** zero records with those IDs SHALL be added during the second import
 
-
-<!-- @trace
-source: add-common-item-settings
-updated: 2026-08-09
-code:
-  - style.css
-  - app.js
-tests:
-  - tests/trip-data-portability.test.js
--->
-
----
 ### Requirement: Preserve imported relationships and item state
 
 The system SHALL preserve the IDs, names, quantities, createdAt values, typeIds, typeDisplay values, item IDs, and departure and return check states of every newly imported trip and trip type record.
@@ -138,18 +98,6 @@ Every non-null typeIds entry on an imported trip SHALL resolve to an imported or
 - **WHEN** the package is merged without an ID or normalized-name conflict
 - **THEN** the resulting commonItems collection SHALL contain shared-item named Passport
 
-
-<!-- @trace
-source: add-common-item-settings
-updated: 2026-08-09
-code:
-  - style.css
-  - app.js
-tests:
-  - tests/trip-data-portability.test.js
--->
-
----
 ### Requirement: Persist successful imports and report the result
 
 After a valid merge, the system SHALL save the merged canonical state through the existing localStorage persistence path and SHALL refresh the visible trip list without a full page reload.
@@ -166,41 +114,3 @@ The system SHALL report the number of added and skipped trips, trip types, and c
 
 - **WHEN** a valid import cannot be written to localStorage
 - **THEN** the system SHALL display the existing storage warning, restore the pre-import state, and SHALL NOT claim that the import is durably saved
-
-
-<!-- @trace
-source: add-common-item-settings
-updated: 2026-08-09
-code:
-  - style.css
-  - app.js
-tests:
-  - tests/trip-data-portability.test.js
--->
-
----
-### Requirement: Keep transfer controls usable from the header
-
-The system SHALL expose 匯出設定 and 匯入設定 controls in the trip list header.
-
-The import control SHALL open a browser file picker restricted to JSON file types, and the file input SHALL reset after processing so the same file can be selected again.
-
-#### Scenario: User opens the import picker
-
-- **WHEN** the user activates 匯入設定
-- **THEN** the browser opens the JSON file picker and the user can select a package using keyboard or pointer input
-
-#### Scenario: User imports the same file after an earlier attempt
-
-- **WHEN** the user selects the same JSON file after a completed or rejected import
-- **THEN** the file change handler processes the selection again
-
-<!-- @trace
-source: trip-data-portability
-updated: 2026-08-09
-code:
-  - style.css
-  - app.js
-tests:
-  - tests/trip-data-portability.test.js
--->
