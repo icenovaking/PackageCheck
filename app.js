@@ -723,6 +723,46 @@ function buildTripItemsContent(trip) {
     </div>`;
 }
 
+function buildTripPrintManifest(trip) {
+  const items = Array.isArray(trip.items) ? trip.items : [];
+  const content =
+    items.length === 0
+      ? '<p class="trip-print-empty">目前沒有可列印的物品。</p>'
+      : `
+        <table class="trip-print-table" aria-label="旅程物品列印清單">
+          <thead>
+            <tr>
+              <th class="trip-print-col-name">物品</th>
+              <th class="trip-print-col-qty">數量</th>
+              <th class="trip-print-col-check">出發</th>
+              <th class="trip-print-col-check">回程</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items
+              .map(
+                (item) => `
+                  <tr>
+                    <td class="trip-print-item-name">${esc(item.name)}</td>
+                    <td class="trip-print-item-qty">${esc(item.qty)}</td>
+                    <td class="trip-print-check-cell"><span class="trip-print-checkbox" aria-label="空白勾選框"></span></td>
+                    <td class="trip-print-check-cell"><span class="trip-print-checkbox" aria-label="空白勾選框"></span></td>
+                  </tr>`,
+              )
+              .join("")}
+          </tbody>
+        </table>`;
+
+  return `
+    <section class="trip-print-manifest" aria-label="旅程物品列印清單">
+      <header class="trip-print-header">
+        <p class="trip-print-kicker">Packing Manifest</p>
+        <h1 class="trip-print-title">${esc(trip.name)}</h1>
+      </header>
+      ${content}
+    </section>`;
+}
+
 function buildTripManager(trip, view) {
   const scopeId = `${view}-${trip.id}`;
   return `
@@ -1466,16 +1506,32 @@ function renderTripDetail(app, tripId) {
               <p class="section-kicker">Packing Manifest</p>
               <h2>${esc(trip.name)}</h2>
             </div>
+            <button type="button" id="btn-print-trip" class="btn-secondary btn-print-trip">
+              匯出 PDF
+            </button>
           </div>
 
-          ${buildTripManager(trip, "detail")}
+          <div class="trip-detail-interactive">
+            ${buildTripManager(trip, "detail")}
+          </div>
+          ${buildTripPrintManifest(trip)}
         </section>
       </main>
     </div>`;
 
   bindTripItemForms(app);
+  bindTripPrintAction(app);
   bindItemActions(app, trip, () => {
     renderTripDetail(document.getElementById("app"), tripId);
+  });
+}
+
+function bindTripPrintAction(app) {
+  const printButton = app.querySelector("#btn-print-trip");
+  printButton?.addEventListener("click", () => {
+    if (typeof window.print === "function") {
+      window.print();
+    }
   });
 }
 

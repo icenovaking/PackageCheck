@@ -16,6 +16,10 @@ function loadAppFunctions() {
   return context;
 }
 
+function loadStyleSheet() {
+  return fs.readFileSync(path.join(__dirname, "..", "style.css"), "utf8");
+}
+
 function validPayload(overrides = {}) {
   return {
     format: "packcheck-data",
@@ -1117,4 +1121,210 @@ test("importDataFile persists common items and reports common-item counts", asyn
   assert.deepEqual(savedState.commonItems, [{ id: "shared-item", name: "Passport" }]);
   assert.match(fixture.status.textContent, /1 個常用物品/);
   assert.match(fixture.status.textContent, /0 個重複常用物品/);
+});
+
+function tripDetailPrintFixture(context, trip) {
+  const listeners = {};
+  const printButton = {
+    addEventListener(type, handler) {
+      listeners[type] = handler;
+    },
+  };
+  const app = {
+    innerHTML: "",
+    querySelector(selector) {
+      if (selector === "#btn-print-trip") return printButton;
+      return null;
+    },
+  };
+
+  context.location = { replace() {} };
+  vm.runInNewContext(
+    `state = ${JSON.stringify({ trips: [trip], tripTypes: [], commonItems: [] })};
+     bindTripItemForms = () => {};
+     bindItemActions = () => {};`,
+    context,
+  );
+
+  return { app, listeners };
+}
+
+test("renderTripDetail exposes a PDF print action that opens browser print", () => {
+  const context = loadAppFunctions();
+  const trip = {
+    id: "trip-japan",
+    name: "11月日本土浦煙火行",
+    items: [],
+  };
+  const fixture = tripDetailPrintFixture(context, trip);
+  let printCalls = 0;
+  context.window.print = () => {
+    printCalls += 1;
+  };
+  const stateBeforePrint = vm.runInNewContext("JSON.stringify(state)", context);
+
+  context.renderTripDetail(fixture.app, trip.id);
+
+  assert.match(fixture.app.innerHTML, /id="btn-print-trip"/);
+  assert.match(
+    fixture.app.innerHTML,
+    /<button[^>]*type="button"[^>]*>[^<]*匯出 PDF/s,
+  );
+  assert.match(fixture.app.innerHTML, /class="trip-print-manifest"/);
+  assert.equal(typeof fixture.listeners.click, "function");
+
+  fixture.listeners.click();
+
+  assert.equal(printCalls, 1);
+  assert.equal(
+    vm.runInNewContext("JSON.stringify(state)", context),
+    stateBeforePrint,
+  );
+});
+
+test("trip print action degrades safely when window.print is unavailable", () => {
+  const context = loadAppFunctions();
+  const trip = {
+    id: "trip-no-print-api",
+    name: "無列印 API 旅程",
+    items: [],
+  };
+  const fixture = tripDetailPrintFixture(context, trip);
+  delete context.window.print;
+  const stateBeforePrint = vm.runInNewContext("JSON.stringify(state)", context);
+
+  context.renderTripDetail(fixture.app, trip.id);
+
+  assert.equal(typeof fixture.listeners.click, "function");
+  assert.doesNotThrow(() => fixture.listeners.click());
+  assert.equal(
+    vm.runInNewContext("JSON.stringify(state)", context),
+    stateBeforePrint,
+  );
+});
+
+test("renderTripDetail redirects an invalid trip without changing state", () => {
+  const context = loadAppFunctions();
+  const app = { innerHTML: "unchanged" };
+  let redirectTarget = null;
+  context.location = {
+    replace(target) {
+      redirectTarget = target;
+    },
+  };
+  vm.runInNewContext(
+    'state = { trips: [], tripTypes: [], commonItems: [] };',
+    context,
+  );
+  const stateBeforeRender = vm.runInNewContext("JSON.stringify(state)", context);
+
+  context.renderTripDetail(app, "missing-trip");
+
+  assert.equal(redirectTarget, "#trips");
+  assert.equal(app.innerHTML, "unchanged");
+  assert.equal(
+    vm.runInNewContext("JSON.stringify(state)", context),
+    stateBeforeRender,
+  );
+});
+
+test("buildTripPrintManifest renders ordered items with fresh blank checkboxes", () => {
+  const context = loadAppFunctions();
+  const trip = {
+    id: "trip-japan",
+    name: "11月日本土浦煙火行",
+    items: [
+      {
+        id: "item-passport",
+        name: "護照",
+        qty: 1,
+        departureChecked: true,
+        returnChecked: false,
+      },
+      {
+        id: "item-phone",
+        name: "手機",
+        qty: 1,
+        departureChecked: true,
+        returnChecked: true,
+      },
+    ],
+  };
+  const before = JSON.stringify(trip);
+
+  const markup = context.buildTripPrintManifest(trip);
+
+  assert.match(markup, /class="trip-print-manifest"/);
+  assert.match(markup, /<h1[^>]*>11月日本土浦煙火行<\/h1>/);
+  assert.match(
+    markup,
+    /<th[^>]*>物品<\/th>[\s\S]*<th[^>]*>數量<\/th>[\s\S]*<th[^>]*>出發<\/th>[\s\S]*<th[^>]*>回程<\/th>/,
+  );
+  assert.ok(markup.indexOf("護照") < markup.indexOf("手機"));
+  assert.equal((markup.match(/class="trip-print-checkbox"/g) || []).length, 4);
+  assert.doesNotMatch(markup, /<input/);
+  assert.doesNotMatch(markup, /\schecked(?:\s|>)/);
+  assert.equal(JSON.stringify(trip), before);
+});
+
+test("buildTripPrintManifest renders a printable empty state", () => {
+  const context = loadAppFunctions();
+
+  const markup = context.buildTripPrintManifest({
+    id: "trip-empty",
+    name: "空白旅程",
+    items: [],
+  });
+
+  assert.match(markup, /<h1[^>]*>空白旅程<\/h1>/);
+  assert.match(markup, /class="trip-print-empty"/);
+  assert.match(markup, /目前沒有可列印的物品/);
+  assert.doesNotMatch(markup, /<form|<input|js-add-item-form/);
+});
+
+test("print styles isolate the printable manifest from interactive controls", () => {
+  const css = loadStyleSheet();
+
+  assert.match(
+    css,
+    /\.trip-print-manifest\s*\{[^}]*display:\s*none\s*;/s,
+  );
+  assert.match(css, /@media\s+print\s*\{/);
+
+  const printCss = css.slice(css.indexOf("@media print"));
+  assert.match(
+    printCss,
+    /\.app-header,\s*\.view-header,\s*\.trip-detail-interactive\s*\{[^}]*display:\s*none\s*!important\s*;/s,
+  );
+  assert.match(
+    printCss,
+    /\.trip-print-manifest\s*\{[^}]*display:\s*block\s*;/s,
+  );
+  assert.match(
+    printCss,
+    /\.trip-print-checkbox\s*\{[^}]*border:\s*[^;]+;/s,
+  );
+  assert.match(
+    printCss,
+    /\.trip-print-empty\s*\{[^}]*border:\s*[^;]+;/s,
+  );
+});
+
+test("print styles keep long manifests readable across pages", () => {
+  const css = loadStyleSheet();
+  const printCss = css.slice(css.indexOf("@media print"));
+
+  assert.match(printCss, /@page\s*\{[^}]*margin:\s*[^;]+;/s);
+  assert.match(
+    printCss,
+    /\.trip-print-table\s+thead\s*\{[^}]*display:\s*table-header-group\s*;/s,
+  );
+  assert.match(
+    printCss,
+    /\.trip-print-table\s+tr\s*\{[^}]*break-inside:\s*avoid\s*;/s,
+  );
+  assert.match(
+    printCss,
+    /\.trip-print-col-name\s*\{[^}]*width:\s*\d+%\s*;/s,
+  );
 });
