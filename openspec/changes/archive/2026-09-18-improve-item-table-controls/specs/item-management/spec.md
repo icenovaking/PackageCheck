@@ -1,8 +1,4 @@
-## Purpose
-
-Defines how items within a trip are added, edited, deleted, and toggled across departure and return checklists.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Add an item to a trip
 
@@ -64,48 +60,6 @@ The system SHALL allow users to add a new item to the current trip by providing 
 - **WHEN** the user attempts to add a manual or selected common item whose normalized name is "護照"
 - **THEN** the system SHALL display a duplicate-name error and SHALL NOT add another item to that trip
 
-
-<!-- @trace
-source: improve-item-table-controls
-updated: 2026-09-18
-code:
-  - app.js
-  - style.css
-tests:
-  - tests/trip-data-portability.test.js
--->
-
----
-### Requirement: Display item list
-
-The system SHALL display all items in the current trip with their name, quantity, pre-departure checkbox, and return-home checkbox.
-
-#### Scenario: Items listed
-
-- **WHEN** the trip detail view is open
-- **THEN** every item in the trip SHALL be visible with its name, quantity, departure checkbox state, and return checkbox state
-
----
-### Requirement: Toggle pre-departure checkbox
-
-The system SHALL allow users to mark or unmark an item as packed before departure.
-
-#### Scenario: Mark as packed
-
-- **WHEN** user taps the pre-departure checkbox of an item
-- **THEN** the item's `departureChecked` state SHALL toggle and be immediately persisted
-
----
-### Requirement: Toggle return-home checkbox
-
-The system SHALL allow users to mark or unmark an item as returned/accounted for before going home.
-
-#### Scenario: Mark as returned
-
-- **WHEN** user taps the return-home checkbox of an item
-- **THEN** the item's `returnChecked` state SHALL toggle and be immediately persisted
-
----
 ### Requirement: Edit an item
 
 The system SHALL allow users to edit an existing item's name and select a quantity from 1 through 10. When the existing quantity is a positive integer greater than 10, the system SHALL also expose that exact current value as a selected compatibility option for that edit session.
@@ -131,24 +85,3 @@ The system SHALL allow users to edit an existing item's name and select a quanti
 
 - **WHEN** an edit submission contains zero, a negative value, a non-numeric value, or a value absent from that edit session's rendered options
 - **THEN** the system SHALL NOT modify or persist the item
-
-
-<!-- @trace
-source: improve-item-table-controls
-updated: 2026-09-18
-code:
-  - app.js
-  - style.css
-tests:
-  - tests/trip-data-portability.test.js
--->
-
----
-### Requirement: Delete an item
-
-The system SHALL allow users to remove an item from the trip.
-
-#### Scenario: Item removed
-
-- **WHEN** user confirms deletion of an item
-- **THEN** the item SHALL be removed from the trip's list and from storage

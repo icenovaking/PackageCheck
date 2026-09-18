@@ -31,6 +31,8 @@
   --radius-lg: 24px;
   --radius-md: 18px;
   --radius-sm: 14px;
+  --item-control-target: 2.75rem;
+  --item-action-gap: clamp(0.12rem, 0.8vw, 0.45rem);
   --font-display: "Microsoft JhengHei", "微軟正黑體", "PingFang TC", sans-serif;
   --font-body: "Microsoft JhengHei", "微軟正黑體", "PingFang TC", sans-serif;
 }
@@ -977,6 +979,7 @@ a.header-chip:hover {
 }
 
 .checkbox-custom {
+  position: relative;
   width: 1.35rem;
   height: 1.35rem;
   border-radius: 0.4rem;
@@ -998,12 +1001,14 @@ a.header-chip:hover {
 .checkbox-wrap input[type="checkbox"]:checked + .checkbox-custom::after {
   content: "";
   display: block;
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
   width: 0.35rem;
   height: 0.7rem;
-  margin: 0.12rem 0 0 0.42rem;
   border: solid #fff;
   border-width: 0 0.13rem 0.13rem 0;
-  transform: rotate(45deg);
+  transform: translate(-50%, -50%) rotate(45deg);
 }
 
 .checkbox-wrap input[type="checkbox"]:focus-visible + .checkbox-custom,
@@ -1036,10 +1041,7 @@ a.header-chip:hover {
 }
 
 .edit-actions-cell {
-  display: flex;
-  flex-wrap: nowrap;
-  justify-content: center;
-  gap: 0.55rem;
+  text-align: center;
 }
 
 .item-row .edit-name-input,
@@ -1335,15 +1337,15 @@ a.header-chip:hover {
   }
 
   .col-qty {
-    width: 12%;
+    width: clamp(3rem, 14%, 4.5rem);
   }
 
   .col-check {
-    width: 16%;
+    width: clamp(2.75rem, 14%, 4.5rem);
   }
 
   .col-actions {
-    width: 22%;
+    width: clamp(5.5rem, 28%, 7rem);
   }
 
   .table-item-name {
@@ -1379,24 +1381,12 @@ a.header-chip:hover {
 
   .action-group {
     display: inline-flex;
-    justify-content: flex-end;
+    justify-content: center;
     width: 100%;
-    gap: 0.18rem;
+    gap: var(--item-action-gap);
   }
 
   .action-group .btn-icon {
-    width: 1.65rem;
-    height: 1.65rem;
-    min-height: 0;
-    padding: 0;
-  }
-
-  .edit-actions-cell {
-    flex-wrap: nowrap;
-    gap: 0.18rem;
-  }
-
-  .edit-actions-cell .btn-icon {
     width: 1.65rem;
     height: 1.65rem;
     min-height: 0;
@@ -1416,12 +1406,6 @@ a.header-chip:hover {
     height: 0.82rem;
   }
 
-  .edit-actions-cell {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.5rem;
-  }
 }
 
 @media (max-width: 380px) {
@@ -1438,18 +1422,6 @@ a.header-chip:hover {
 
   .item-table th {
     font-size: 0.52rem;
-  }
-
-  .col-qty {
-    width: 11%;
-  }
-
-  .col-check {
-    width: 15%;
-  }
-
-  .col-actions {
-    width: 24%;
   }
 
   .table-item-name,
@@ -1476,21 +1448,7 @@ a.header-chip:hover {
     height: 1.55rem;
   }
 
-  .edit-actions-cell {
-    gap: 0.12rem;
-  }
-
-  .edit-actions-cell .btn-icon {
-    width: 1.55rem;
-    height: 1.55rem;
-  }
-
   .action-group .btn-icon .icon {
-    width: 0.72rem;
-    height: 0.72rem;
-  }
-
-  .edit-actions-cell .btn-icon .icon {
     width: 0.72rem;
     height: 0.72rem;
   }
@@ -1500,6 +1458,18 @@ a.header-chip:hover {
     min-height: 1.8rem;
     padding: 0.35rem 0.35rem;
     font-size: 0.72rem;
+  }
+}
+
+@media (pointer: coarse) {
+  .checkbox-wrap {
+    min-width: var(--item-control-target);
+    min-height: var(--item-control-target);
+  }
+
+  .action-group .btn-icon {
+    min-width: var(--item-control-target);
+    min-height: var(--item-control-target);
   }
 }
 
@@ -1567,6 +1537,25 @@ a.header-chip:hover {
 .select-input:disabled {
   cursor: not-allowed;
   opacity: 0.65;
+}
+
+.quantity-select {
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  text-align-last: center;
+}
+
+.item-row .quantity-select {
+  min-height: var(--item-control-target);
+  padding: 0.45rem 1rem 0.45rem 0.25rem;
+  border-radius: 0.75rem;
+  background-position:
+    calc(100% - 0.65rem) calc(50% - 0.1rem),
+    calc(100% - 0.4rem) calc(50% - 0.1rem);
+  background-size:
+    0.25rem 0.25rem,
+    0.25rem 0.25rem;
+  font-size: 1rem;
 }
 
 /* Settings page layout */
@@ -1669,11 +1658,11 @@ a.header-chip:hover {
   }
 
   .preset-table .col-actions {
-    width: 28%;
+    width: clamp(5.5rem, 28%, 7rem);
   }
 
   .preset-table .col-qty {
-    width: 18%;
+    width: clamp(3rem, 18%, 4.5rem);
   }
 }
 

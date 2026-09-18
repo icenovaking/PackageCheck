@@ -723,6 +723,39 @@ function buildTripItemsContent(trip) {
     </div>`;
 }
 
+function parseAllowedQuantity(rawValue, currentQuantity = null) {
+  const normalizedValue = String(rawValue).trim();
+  if (!/^\d+$/.test(normalizedValue)) return null;
+
+  const quantity = Number(normalizedValue);
+  if (!Number.isSafeInteger(quantity) || String(quantity) !== normalizedValue) {
+    return null;
+  }
+  if (quantity >= 1 && quantity <= 10) return quantity;
+
+  return Number.isSafeInteger(currentQuantity) &&
+    currentQuantity > 10 &&
+    quantity === currentQuantity
+    ? quantity
+    : null;
+}
+
+function buildQuantityOptions(selectedQuantity = 1) {
+  const selected =
+    Number.isSafeInteger(selectedQuantity) && selectedQuantity > 10
+      ? selectedQuantity
+      : parseAllowedQuantity(selectedQuantity) || 1;
+  const quantities = Array.from({ length: 10 }, (_, index) => index + 1);
+  if (selected > 10) quantities.push(selected);
+
+  return quantities
+    .map(
+      (quantity) =>
+        `<option value="${quantity}"${quantity === selected ? " selected" : ""}>${quantity}</option>`,
+    )
+    .join("");
+}
+
 function buildTripPrintManifest(trip) {
   const items = Array.isArray(trip.items) ? trip.items : [];
   const content =
@@ -774,14 +807,12 @@ function buildTripManager(trip, view) {
       })}
       <div class="input-group input-group-compact">
         <label for="input-item-qty-${esc(scopeId)}">數量</label>
-        <input
-          type="number"
+        <select
           id="input-item-qty-${esc(scopeId)}"
-          class="js-item-qty-input"
-          placeholder="數量"
-          min="1"
-          value="1"
-        />
+          class="select-input quantity-select js-item-qty-input"
+        >
+          ${buildQuantityOptions()}
+        </select>
       </div>
       <button type="submit" class="btn-primary">
         ${icon("plus")}
@@ -917,7 +948,7 @@ function bindTripItemForms(app) {
         },
         state.commonItems,
       );
-      const qty = parseInt(qtyInput.value, 10);
+      const qty = parseAllowedQuantity(qtyInput.value);
 
       if (source.error) {
         errEl.textContent = source.error;
@@ -935,8 +966,8 @@ function bindTripItemForms(app) {
         return;
       }
 
-      if (!Number.isInteger(qty) || qty < 1) {
-        errEl.textContent = "數量必須是正整數（≥ 1）。";
+      if (qty === null) {
+        errEl.textContent = "數量必須選擇 1 至 10。";
         errEl.classList.remove("hidden");
         qtyInput.focus();
         return;
@@ -1585,6 +1616,30 @@ function buildItemRow(item) {
     </tr>`;
 }
 
+function buildItemEditRowMarkup(item) {
+  return `
+    <td class="col-name">
+      <input type="text" class="edit-name-input" value="${esc(item.name)}" maxlength="100" aria-label="物品名稱" />
+    </td>
+    <td class="col-qty">
+      <select class="select-input quantity-select edit-qty-input" aria-label="數量">
+        ${buildQuantityOptions(item.qty)}
+      </select>
+    </td>
+    <td class="col-check edit-placeholder" aria-hidden="true"></td>
+    <td class="col-check edit-placeholder" aria-hidden="true"></td>
+    <td class="col-actions edit-actions-cell">
+      <div class="action-group">
+        <button class="btn-icon btn-icon-save js-save-edit" aria-label="儲存 ${esc(item.name)}">
+          ${icon("check")}
+        </button>
+        <button class="btn-icon btn-icon-cancel js-cancel-edit" aria-label="取消編輯 ${esc(item.name)}">
+          ${icon("x")}
+        </button>
+      </div>
+    </td>`;
+}
+
 /** Bind all item-level interactions. */
 function bindItemActions(app, trip, rerender) {
   // 5.3 – pre-departure checkbox toggle
@@ -1630,23 +1685,7 @@ function bindItemActions(app, trip, rerender) {
       if (!row) return;
       row.classList.add("is-editing");
 
-      row.innerHTML = `
-        <td class="col-name">
-          <input type="text" class="edit-name-input" value="${esc(item.name)}" maxlength="100" aria-label="物品名稱" />
-        </td>
-        <td class="col-qty">
-          <input type="number" class="edit-qty-input" value="${item.qty}" min="1" aria-label="數量" />
-        </td>
-        <td class="col-check edit-placeholder" aria-hidden="true"></td>
-        <td class="col-check edit-placeholder" aria-hidden="true"></td>
-        <td class="col-actions edit-actions-cell">
-          <button class="btn-icon btn-icon-save js-save-edit" aria-label="儲存 ${esc(item.name)}">
-            ${icon("check")}
-          </button>
-          <button class="btn-icon btn-icon-cancel js-cancel-edit" aria-label="取消編輯 ${esc(item.name)}">
-            ${icon("x")}
-          </button>
-        </td>`;
+      row.innerHTML = buildItemEditRowMarkup(item);
 
       const nameInput = row.querySelector(".edit-name-input");
       nameInput.focus();
@@ -1654,8 +1693,11 @@ function bindItemActions(app, trip, rerender) {
 
       row.querySelector(".js-save-edit").addEventListener("click", () => {
         const newName = row.querySelector(".edit-name-input").value.trim();
-        const newQty = parseInt(row.querySelector(".edit-qty-input").value, 10);
-        if (!newName || !Number.isInteger(newQty) || newQty < 1) return;
+        const newQty = parseAllowedQuantity(
+          row.querySelector(".edit-qty-input").value,
+          item.qty,
+        );
+        if (!newName || newQty === null) return;
         if (hasDuplicateItemName(trip.items, newName, item.id)) {
           window.alert("這個旅程已有相同名稱的物品。");
           row.querySelector(".edit-name-input").focus();
@@ -2098,14 +2140,12 @@ function buildTripTypeCard(type) {
                 })}
                 <div class="input-group input-group-compact">
                   <label for="input-preset-qty-${esc(type.id)}">數量</label>
-                  <input
-                    type="number"
+                  <select
                     id="input-preset-qty-${esc(type.id)}"
-                    class="js-preset-qty-input"
-                    placeholder="數量"
-                    min="1"
-                    value="1"
-                  />
+                    class="select-input quantity-select js-preset-qty-input"
+                  >
+                    ${buildQuantityOptions()}
+                  </select>
                 </div>
                 <button type="submit" class="btn-primary">
                   ${icon("plus")}
@@ -2148,6 +2188,28 @@ function buildPresetRow(typeId, preset) {
         </div>
       </td>
     </tr>`;
+}
+
+function buildPresetEditRowMarkup(preset) {
+  return `
+    <td class="col-name">
+      <input type="text" class="edit-name-input" value="${esc(preset.name)}" maxlength="100" aria-label="物品名稱" />
+    </td>
+    <td class="col-qty">
+      <select class="select-input quantity-select edit-qty-input" aria-label="數量">
+        ${buildQuantityOptions(preset.qty)}
+      </select>
+    </td>
+    <td class="col-actions edit-actions-cell">
+      <div class="action-group">
+        <button class="btn-icon btn-icon-save js-save-preset-edit" aria-label="儲存 ${esc(preset.name)}">
+          ${icon("check")}
+        </button>
+        <button class="btn-icon btn-icon-cancel js-cancel-preset-edit" aria-label="取消編輯 ${esc(preset.name)}">
+          ${icon("x")}
+        </button>
+      </div>
+    </td>`;
 }
 
 function bindSettingsActions(app) {
@@ -2282,7 +2344,7 @@ function bindSettingsActions(app) {
         },
         state.commonItems,
       );
-      const qty = parseInt(qtyInput.value, 10);
+      const qty = parseAllowedQuantity(qtyInput.value);
       if (source.error) {
         errEl.textContent = source.error;
         errEl.classList.remove("hidden");
@@ -2296,8 +2358,8 @@ function bindSettingsActions(app) {
         nameInput.focus();
         return;
       }
-      if (!Number.isInteger(qty) || qty < 1) {
-        errEl.textContent = "數量必須是正整數（≥ 1）。";
+      if (qty === null) {
+        errEl.textContent = "數量必須選擇 1 至 10。";
         errEl.classList.remove("hidden");
         qtyInput.focus();
         return;
@@ -2341,21 +2403,7 @@ function bindSettingsActions(app) {
       );
       if (!row) return;
       row.classList.add("is-editing");
-      row.innerHTML = `
-        <td class="col-name">
-          <input type="text" class="edit-name-input" value="${esc(preset.name)}" maxlength="100" aria-label="物品名稱" />
-        </td>
-        <td class="col-qty">
-          <input type="number" class="edit-qty-input" value="${preset.qty}" min="1" aria-label="數量" />
-        </td>
-        <td class="col-actions edit-actions-cell">
-          <button class="btn-icon btn-icon-save js-save-preset-edit" aria-label="儲存 ${esc(preset.name)}">
-            ${icon("check")}
-          </button>
-          <button class="btn-icon btn-icon-cancel js-cancel-preset-edit" aria-label="取消編輯 ${esc(preset.name)}">
-            ${icon("x")}
-          </button>
-        </td>`;
+      row.innerHTML = buildPresetEditRowMarkup(preset);
       const nameInput = row.querySelector(".edit-name-input");
       nameInput.focus();
       nameInput.select();
@@ -2363,11 +2411,11 @@ function bindSettingsActions(app) {
         .querySelector(".js-save-preset-edit")
         .addEventListener("click", () => {
           const newName = row.querySelector(".edit-name-input").value.trim();
-          const newQty = parseInt(
+          const newQty = parseAllowedQuantity(
             row.querySelector(".edit-qty-input").value,
-            10,
+            preset.qty,
           );
-          if (!newName || !Number.isInteger(newQty) || newQty < 1) return;
+          if (!newName || newQty === null) return;
           if (hasDuplicateItemName(type.presetItems, newName, preset.id)) {
             window.alert("這個旅程類型已有相同名稱的預設物品。");
             row.querySelector(".edit-name-input").focus();

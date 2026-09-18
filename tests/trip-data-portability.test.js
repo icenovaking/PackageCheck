@@ -1328,3 +1328,339 @@ test("print styles keep long manifests readable across pages", () => {
     /\.trip-print-col-name\s*\{[^}]*width:\s*\d+%\s*;/s,
   );
 });
+
+test("quantity options cover 1 through 10 and default to 1", () => {
+  const context = loadAppFunctions();
+
+  const markup = context.buildQuantityOptions();
+  const values = [...markup.matchAll(/<option value="(\d+)"/g)].map(
+    (match) => Number(match[1]),
+  );
+
+  assert.deepEqual(values, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.match(markup, /<option value="1" selected>1<\/option>/);
+  assert.doesNotMatch(markup, /value="11"/);
+});
+
+test("quantity options preserve only the selected legacy value above 10", () => {
+  const context = loadAppFunctions();
+
+  const markup = context.buildQuantityOptions(12);
+  const values = [...markup.matchAll(/<option value="(\d+)"/g)].map(
+    (match) => Number(match[1]),
+  );
+
+  assert.deepEqual(values, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]);
+  assert.match(markup, /<option value="12" selected>12<\/option>/);
+  assert.equal(values.filter((value) => value === 12).length, 1);
+});
+
+test("parseAllowedQuantity rejects tampering and allows an exact legacy value", () => {
+  const context = loadAppFunctions();
+
+  assert.equal(context.parseAllowedQuantity("1"), 1);
+  assert.equal(context.parseAllowedQuantity("10"), 10);
+  assert.equal(context.parseAllowedQuantity("11"), null);
+  assert.equal(context.parseAllowedQuantity("12", 12), 12);
+  assert.equal(context.parseAllowedQuantity("13", 12), null);
+  assert.equal(context.parseAllowedQuantity("0"), null);
+  assert.equal(context.parseAllowedQuantity("-1"), null);
+  assert.equal(context.parseAllowedQuantity("not-a-number"), null);
+});
+
+test("trip and preset add forms render native quantity selects", () => {
+  const context = loadAppFunctions();
+  const type = {
+    id: "type-1",
+    name: "旅行",
+    createdAt: "2026-09-18T00:00:00.000Z",
+    presetItems: [],
+  };
+  vm.runInNewContext(
+    `state = ${JSON.stringify({ trips: [], tripTypes: [type], commonItems: [] })};
+     uiState.expandedTypeId = "type-1";`,
+    context,
+  );
+
+  const tripMarkup = context.buildTripManager(
+    { id: "trip-1", name: "日本", items: [] },
+    "detail",
+  );
+  const presetMarkup = context.buildTripTypeCard(type);
+
+  assert.match(
+    tripMarkup,
+    /<select[^>]*class="[^"]*js-item-qty-input[^"]*"[^>]*>[\s\S]*<option value="10"/,
+  );
+  assert.doesNotMatch(tripMarkup, /<input[^>]*class="js-item-qty-input"/);
+  assert.match(
+    presetMarkup,
+    /<select[^>]*class="[^"]*js-preset-qty-input[^"]*"[^>]*>[\s\S]*<option value="10"/,
+  );
+  assert.doesNotMatch(presetMarkup, /<input[^>]*class="js-preset-qty-input"/);
+});
+
+test("trip and preset edit rows preserve quantity 12 in native selects", () => {
+  const context = loadAppFunctions();
+  const item = {
+    id: "item-12",
+    name: "毛巾",
+    qty: 12,
+    departureChecked: false,
+    returnChecked: false,
+  };
+  const preset = { id: "preset-12", name: "襪子", qty: 12 };
+
+  const itemMarkup = context.buildItemEditRowMarkup(item);
+  const presetMarkup = context.buildPresetEditRowMarkup(preset);
+
+  for (const markup of [itemMarkup, presetMarkup]) {
+    assert.match(markup, /<select[^>]*class="[^"]*edit-qty-input[^"]*"/);
+    assert.match(markup, /<option value="12" selected>12<\/option>/);
+    assert.doesNotMatch(markup, /<input[^>]*class="edit-qty-input"/);
+  }
+});
+
+function makeClickControl(dataset = {}) {
+  return {
+    dataset,
+    listeners: {},
+    addEventListener(type, listener) {
+      this.listeners[type] = listener;
+    },
+  };
+}
+
+function makeEditableRow(name, quantity) {
+  const nameInput = {
+    value: name,
+    focus() {},
+    select() {},
+  };
+  const quantitySelect = { value: String(quantity), focus() {} };
+  const saveItem = makeClickControl();
+  const cancelItem = makeClickControl();
+  const savePreset = makeClickControl();
+  const cancelPreset = makeClickControl();
+
+  return {
+    innerHTML: "",
+    classList: { add() {} },
+    querySelector(selector) {
+      if (selector === ".edit-name-input") return nameInput;
+      if (selector === ".edit-qty-input") return quantitySelect;
+      if (selector === ".js-save-edit") return saveItem;
+      if (selector === ".js-cancel-edit") return cancelItem;
+      if (selector === ".js-save-preset-edit") return savePreset;
+      if (selector === ".js-cancel-preset-edit") return cancelPreset;
+      return null;
+    },
+    controls: {
+      nameInput,
+      quantitySelect,
+      saveItem,
+      cancelItem,
+      savePreset,
+      cancelPreset,
+    },
+  };
+}
+
+test("trip item edit preserves legacy quantity, rejects tampering, and cancels safely", () => {
+  const context = loadAppFunctions();
+  const item = {
+    id: "item-12",
+    name: "毛巾",
+    qty: 12,
+    departureChecked: false,
+    returnChecked: false,
+  };
+  const trip = { id: "trip-1", items: [item] };
+  const editButton = makeClickControl({ id: item.id });
+  const row = makeEditableRow(item.name, item.qty);
+  let rerenderCount = 0;
+  context.localStorage = { setItem() {} };
+  vm.runInNewContext("storageAvailable = true;", context);
+  const app = {
+    querySelectorAll(selector) {
+      return selector === ".js-edit-item" ? [editButton] : [];
+    },
+    querySelector(selector) {
+      return selector === `.item-row[data-id="${item.id}"]` ? row : null;
+    },
+  };
+
+  context.bindItemActions(app, trip, () => {
+    rerenderCount += 1;
+  });
+  editButton.listeners.click();
+
+  assert.match(row.innerHTML, /<option value="12" selected>12<\/option>/);
+  row.controls.nameInput.value = "浴巾";
+  row.controls.saveItem.listeners.click();
+  assert.equal(item.name, "浴巾");
+  assert.equal(item.qty, 12);
+  assert.equal(rerenderCount, 1);
+
+  row.controls.quantitySelect.value = "13";
+  row.controls.nameInput.value = "不應儲存";
+  row.controls.saveItem.listeners.click();
+  assert.equal(item.name, "浴巾");
+  assert.equal(item.qty, 12);
+  assert.equal(rerenderCount, 1);
+
+  row.controls.nameInput.value = "取消名稱";
+  row.controls.quantitySelect.value = "4";
+  row.controls.cancelItem.listeners.click();
+  assert.equal(item.name, "浴巾");
+  assert.equal(item.qty, 12);
+  assert.equal(rerenderCount, 2);
+});
+
+test("preset item edit preserves legacy quantity, rejects tampering, and cancels safely", () => {
+  const context = loadAppFunctions();
+  const preset = { id: "preset-12", name: "襪子", qty: 12 };
+  const type = { id: "type-1", name: "旅行", presetItems: [preset] };
+  const editButton = makeClickControl({ typeId: type.id, id: preset.id });
+  const row = makeEditableRow(preset.name, preset.qty);
+  const dummyForm = { addEventListener() {} };
+  let rerenderCount = 0;
+  context.localStorage = { setItem() {} };
+  context.renderSettings = () => {
+    rerenderCount += 1;
+  };
+  const app = {
+    querySelectorAll(selector) {
+      return selector === ".js-edit-preset" ? [editButton] : [];
+    },
+    querySelector(selector) {
+      return selector ===
+        `.preset-row[data-type-id="${type.id}"][data-id="${preset.id}"]`
+        ? row
+        : null;
+    },
+  };
+  context.document = {
+    getElementById(id) {
+      if (id === "form-type-jump" || id === "form-add-trip-type") {
+        return dummyForm;
+      }
+      if (id === "app") return app;
+      return null;
+    },
+  };
+  vm.runInNewContext(
+    `state = ${JSON.stringify({ trips: [], tripTypes: [type], commonItems: [] })};
+     storageAvailable = true;`,
+    context,
+  );
+
+  context.bindSettingsActions(app);
+  editButton.listeners.click();
+
+  assert.match(row.innerHTML, /<option value="12" selected>12<\/option>/);
+  row.controls.nameInput.value = "厚襪";
+  row.controls.savePreset.listeners.click();
+  let savedPreset = JSON.parse(
+    vm.runInNewContext("JSON.stringify(state.tripTypes[0].presetItems[0])", context),
+  );
+  assert.equal(savedPreset.name, "厚襪");
+  assert.equal(savedPreset.qty, 12);
+  assert.equal(rerenderCount, 1);
+
+  row.controls.quantitySelect.value = "13";
+  row.controls.nameInput.value = "不應儲存";
+  row.controls.savePreset.listeners.click();
+  savedPreset = JSON.parse(
+    vm.runInNewContext("JSON.stringify(state.tripTypes[0].presetItems[0])", context),
+  );
+  assert.equal(savedPreset.name, "厚襪");
+  assert.equal(savedPreset.qty, 12);
+  assert.equal(rerenderCount, 1);
+
+  row.controls.nameInput.value = "取消名稱";
+  row.controls.quantitySelect.value = "4";
+  row.controls.cancelPreset.listeners.click();
+  savedPreset = JSON.parse(
+    vm.runInNewContext("JSON.stringify(state.tripTypes[0].presetItems[0])", context),
+  );
+  assert.equal(savedPreset.name, "厚襪");
+  assert.equal(savedPreset.qty, 12);
+  assert.equal(rerenderCount, 2);
+});
+
+test("interactive checkbox checkmark is centered without directional margins", () => {
+  const css = loadStyleSheet();
+  const checkmarkRule = css.match(
+    /\.checkbox-wrap input\[type="checkbox"\]:checked \+ \.checkbox-custom::after\s*\{([^}]*)\}/s,
+  );
+
+  assert.ok(checkmarkRule, "checked checkbox indicator rule must exist");
+  assert.match(checkmarkRule[1], /position:\s*absolute\s*;/);
+  assert.match(checkmarkRule[1], /inset-block-start:\s*50%\s*;/);
+  assert.match(checkmarkRule[1], /inset-inline-start:\s*50%\s*;/);
+  assert.match(checkmarkRule[1], /translate\(-50%,\s*-50%\)/);
+  assert.doesNotMatch(checkmarkRule[1], /margin(?:-[a-z]+)?:/);
+});
+
+test("coarse pointers receive a 44px checkbox target without enlarging the visible box", () => {
+  const css = loadStyleSheet();
+  const coarsePointerCss = css.match(/@media\s*\(pointer:\s*coarse\)\s*\{([\s\S]*?)\n\}/);
+
+  assert.ok(coarsePointerCss, "coarse pointer media query must exist");
+  assert.match(css, /--item-control-target:\s*2\.75rem\s*;/);
+  assert.match(
+    coarsePointerCss[1],
+    /\.checkbox-wrap\s*\{[^}]*min-width:\s*var\(--item-control-target\)\s*;[^}]*min-height:\s*var\(--item-control-target\)\s*;/s,
+  );
+  assert.doesNotMatch(
+    coarsePointerCss[1],
+    /\.checkbox-custom\s*\{[^}]*width:\s*2\.75rem/s,
+  );
+});
+
+test("edit row actions use the shared inner action group without flexing the table cell", () => {
+  const context = loadAppFunctions();
+  const css = loadStyleSheet();
+  const itemMarkup = context.buildItemEditRowMarkup({
+    id: "item-1",
+    name: "毛巾",
+    qty: 1,
+  });
+  const presetMarkup = context.buildPresetEditRowMarkup({
+    id: "preset-1",
+    name: "襪子",
+    qty: 1,
+  });
+
+  for (const markup of [itemMarkup, presetMarkup]) {
+    assert.match(
+      markup,
+      /<td class="col-actions edit-actions-cell">\s*<div class="action-group">[\s\S]*<\/div>\s*<\/td>/,
+    );
+  }
+
+  const editCellRules = [...css.matchAll(/\.edit-actions-cell(?:\s[^,{]+)?\s*\{([^}]*)\}/g)];
+  assert.ok(editCellRules.length > 0, "edit action cell styling must remain explicit");
+  for (const [, declarations] of editCellRules) {
+    assert.doesNotMatch(declarations, /display:\s*flex\s*;/);
+  }
+});
+
+test("responsive item controls keep readable selects and 44px coarse-pointer actions", () => {
+  const css = loadStyleSheet();
+  const quantityRule = css.match(/\.item-row \.quantity-select\s*\{([^}]*)\}/s);
+  const coarsePointerCss = css.match(/@media\s*\(pointer:\s*coarse\)\s*\{([\s\S]*?)\n\}/);
+
+  assert.ok(quantityRule, "item quantity select rule must exist");
+  assert.match(quantityRule[1], /font-size:\s*1rem\s*;/);
+  assert.match(
+    quantityRule[1],
+    /min-height:\s*var\(--item-control-target\)\s*;/,
+  );
+  assert.ok(coarsePointerCss, "coarse pointer media query must exist");
+  assert.match(
+    coarsePointerCss[1],
+    /\.action-group \.btn-icon\s*\{[^}]*min-width:\s*var\(--item-control-target\)\s*;[^}]*min-height:\s*var\(--item-control-target\)\s*;/s,
+  );
+});
