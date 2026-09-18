@@ -33,6 +33,10 @@
   --radius-sm: 14px;
   --item-control-target: 2.75rem;
   --item-action-gap: clamp(0.12rem, 0.8vw, 0.45rem);
+  --item-action-column-width: calc(
+    var(--item-control-target) + var(--item-control-target) +
+      var(--item-action-gap) + 0.25rem
+  );
   --font-display: "Microsoft JhengHei", "微軟正黑體", "PingFang TC", sans-serif;
   --font-body: "Microsoft JhengHei", "微軟正黑體", "PingFang TC", sans-serif;
 }
@@ -1344,10 +1348,6 @@ a.header-chip:hover {
     width: clamp(2.75rem, 14%, 4.5rem);
   }
 
-  .col-actions {
-    width: clamp(5.5rem, 28%, 7rem);
-  }
-
   .table-item-name {
     font-size: 0.92rem;
   }
@@ -1468,6 +1468,7 @@ a.header-chip:hover {
   }
 
   .action-group .btn-icon {
+    flex-shrink: 0;
     min-width: var(--item-control-target);
     min-height: var(--item-control-target);
   }
@@ -1647,6 +1648,11 @@ a.header-chip:hover {
 }
 
 @media (max-width: 540px) {
+  .col-actions {
+    width: var(--item-action-column-width);
+    padding-inline: 0.125rem;
+  }
+
   .settings-nav {
     width: 100%;
     justify-content: flex-start;
@@ -1657,8 +1663,9 @@ a.header-chip:hover {
     text-align: center;
   }
 
-  .preset-table .col-actions {
-    width: clamp(5.5rem, 28%, 7rem);
+  .preset-table .col-actions,
+  .common-item-table .col-actions {
+    width: var(--item-action-column-width);
   }
 
   .preset-table .col-qty {

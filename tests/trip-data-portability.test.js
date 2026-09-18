@@ -1664,3 +1664,24 @@ test("responsive item controls keep readable selects and 44px coarse-pointer act
     /\.action-group \.btn-icon\s*\{[^}]*min-width:\s*var\(--item-control-target\)\s*;[^}]*min-height:\s*var\(--item-control-target\)\s*;/s,
   );
 });
+
+test("mobile action columns budget space for two coarse-pointer controls", () => {
+  const css = loadStyleSheet();
+
+  assert.match(
+    css,
+    /--item-action-column-width:\s*calc\(\s*var\(--item-control-target\)\s*\+\s*var\(--item-control-target\)\s*\+\s*var\(--item-action-gap\)\s*\+\s*0\.25rem\s*\)\s*;/,
+  );
+  assert.match(
+    css,
+    /@media\s*\(max-width:\s*540px\)[\s\S]*?\.col-actions\s*\{[^}]*width:\s*var\(--item-action-column-width\)\s*;[^}]*padding-inline:\s*0\.125rem\s*;/s,
+  );
+  assert.match(
+    css,
+    /@media\s*\(max-width:\s*540px\)[\s\S]*?\.preset-table \.col-actions,\s*\.common-item-table \.col-actions\s*\{[^}]*width:\s*var\(--item-action-column-width\)\s*;/s,
+  );
+  assert.match(
+    css,
+    /@media\s*\(pointer:\s*coarse\)[\s\S]*?\.action-group \.btn-icon\s*\{[^}]*flex-shrink:\s*0\s*;[^}]*min-width:\s*var\(--item-control-target\)\s*;[^}]*min-height:\s*var\(--item-control-target\)\s*;/s,
+  );
+});
