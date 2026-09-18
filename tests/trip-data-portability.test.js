@@ -829,6 +829,203 @@ test("bindSettingsActions copies a selected common item into a preset item", () 
   assert.notEqual(type.presetItems[0].id, "common-passport");
 });
 
+function createAddTypeHarness(
+  context,
+  { commonItems, applyAll = true, typeName = "日本旅遊" },
+) {
+  vm.runInNewContext(
+    `state = ${JSON.stringify({
+      trips: [],
+      tripTypes: [],
+      commonItems,
+    })}; storageAvailable = true;`,
+    context,
+  );
+  context.localStorage = { setItem() {} };
+  context.renderSettings = () => {};
+
+  let nextId = 0;
+  context.genId = () => `preset-${++nextId}`;
+
+  const makeForm = () => ({
+    listeners: {},
+    addEventListener(type, listener) {
+      this.listeners[type] = listener;
+    },
+  });
+  const typeJumpForm = makeForm();
+  const addTypeForm = makeForm();
+  const nameInput = { value: typeName, focus() {} };
+  const applyAllInput = { checked: applyAll, disabled: false };
+  const errEl = {
+    textContent: "",
+    classList: { add() {}, remove() {} },
+  };
+  const app = {
+    querySelectorAll() {
+      return [];
+    },
+  };
+
+  context.document = {
+    getElementById(id) {
+      if (id === "form-type-jump") return typeJumpForm;
+      if (id === "form-add-trip-type") return addTypeForm;
+      if (id === "input-trip-type-name") return nameInput;
+      if (id === "input-apply-common-items") return applyAllInput;
+      if (id === "trip-type-error") return errEl;
+      if (id === "app") return app;
+      return null;
+    },
+  };
+
+  context.bindSettingsActions(app);
+  return { addTypeForm, errEl };
+}
+
+test("new trip types copy every common item by default as an isolated preset snapshot", () => {
+  const context = loadAppFunctions();
+  const { addTypeForm } = createAddTypeHarness(context, {
+    commonItems: [
+      { id: "common-passport", name: "護照" },
+      { id: "common-charger", name: "充電器" },
+      { id: "common-umbrella", name: "雨傘" },
+    ],
+  });
+
+  addTypeForm.listeners.submit({ preventDefault() {} });
+  vm.runInNewContext(
+    `state.commonItems[0].name = "電子護照";
+     state.commonItems.splice(1, 1);
+     state.commonItems.push({ id: "common-wallet", name: "錢包" });`,
+    context,
+  );
+
+  const type = JSON.parse(
+    vm.runInNewContext("JSON.stringify(state.tripTypes[0])", context),
+  );
+  assert.deepEqual(
+    type.presetItems.map(({ id, name, qty }) => ({ id, name, qty })),
+    [
+      { id: "preset-2", name: "護照", qty: 1 },
+      { id: "preset-3", name: "充電器", qty: 1 },
+      { id: "preset-4", name: "雨傘", qty: 1 },
+    ],
+  );
+  assert.equal(
+    type.presetItems.some((item) => Object.hasOwn(item, "commonItemId")),
+    false,
+  );
+});
+
+test("new trip types remain empty when bulk apply is cleared", () => {
+  const context = loadAppFunctions();
+  const { addTypeForm } = createAddTypeHarness(context, {
+    commonItems: [{ id: "common-passport", name: "護照" }],
+    applyAll: false,
+  });
+
+  addTypeForm.listeners.submit({ preventDefault() {} });
+
+  const type = JSON.parse(
+    vm.runInNewContext("JSON.stringify(state.tripTypes[0])", context),
+  );
+  assert.deepEqual(type.presetItems, []);
+});
+
+test("new trip types treat empty or invalid common item collections as empty", () => {
+  for (const commonItems of [[], null]) {
+    const context = loadAppFunctions();
+    const { addTypeForm } = createAddTypeHarness(context, {
+      commonItems,
+    });
+
+    addTypeForm.listeners.submit({ preventDefault() {} });
+
+    const type = JSON.parse(
+      vm.runInNewContext("JSON.stringify(state.tripTypes[0])", context),
+    );
+    assert.deepEqual(type.presetItems, []);
+  }
+});
+
+test("blank trip type names do not create a type or consume preset copies", () => {
+  const context = loadAppFunctions();
+  const { addTypeForm, errEl } = createAddTypeHarness(context, {
+    commonItems: [{ id: "common-passport", name: "護照" }],
+    typeName: "   ",
+  });
+
+  addTypeForm.listeners.submit({ preventDefault() {} });
+
+  const tripTypes = JSON.parse(
+    vm.runInNewContext("JSON.stringify(state.tripTypes)", context),
+  );
+  assert.deepEqual(tripTypes, []);
+  assert.equal(errEl.textContent, "請輸入類型名稱。");
+});
+
+function renderSettingsMarkup(context, commonItems) {
+  vm.runInNewContext(
+    `state = ${JSON.stringify({
+      trips: [],
+      tripTypes: [],
+      commonItems,
+    })};`,
+    context,
+  );
+  context.bindSettingsActions = () => {};
+  context.applyPendingCardFocus = () => {};
+  const app = { innerHTML: "" };
+
+  context.renderSettings(app);
+
+  return app.innerHTML;
+}
+
+test("add-type form defaults bulk apply on and exposes an associated label", () => {
+  const html = renderSettingsMarkup(loadAppFunctions(), [
+    { id: "common-passport", name: "護照" },
+    { id: "common-charger", name: "充電器" },
+  ]);
+
+  assert.match(
+    html,
+    /<label[^>]*for="input-apply-common-items"[^>]*>/,
+  );
+  assert.match(
+    html,
+    /<input[^>]*type="checkbox"[^>]*id="input-apply-common-items"[^>]*checked/,
+  );
+  assert.doesNotMatch(
+    html.match(/<input[^>]*id="input-apply-common-items"[^>]*>/)?.[0] || "",
+    /disabled/,
+  );
+  assert.match(html, /將全部常用物品加入此類型/);
+  assert.match(html, /目前共 2 項/);
+});
+
+test("add-type form disables and clears bulk apply when common items are unavailable", () => {
+  for (const commonItems of [[], null]) {
+    const html = renderSettingsMarkup(loadAppFunctions(), commonItems);
+    const checkbox =
+      html.match(/<input[^>]*id="input-apply-common-items"[^>]*>/)?.[0] || "";
+
+    assert.match(checkbox, /disabled/);
+    assert.doesNotMatch(checkbox, /checked/);
+    assert.match(html, /目前沒有常用物品可套用/);
+  }
+});
+
+test("bulk-apply checkbox exposes a visible keyboard focus style", () => {
+  const css = loadStyleSheet();
+
+  assert.match(
+    css,
+    /\.trip-type-bulk-apply input\[type="checkbox"\]:focus-visible/,
+  );
+});
+
 test("manual trip item entry does not create a common item", () => {
   const context = loadAppFunctions();
   vm.runInNewContext(

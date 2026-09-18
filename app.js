@@ -1950,6 +1950,10 @@ function bindCommonItemActions(app) {
 
 function renderSettings(app) {
   const { tripTypes } = state;
+  const commonItems = Array.isArray(state.commonItems)
+    ? state.commonItems
+    : [];
+  const hasCommonItems = commonItems.length > 0;
   if (
     uiState.expandedTypeId &&
     !tripTypes.some((type) => type.id === uiState.expandedTypeId)
@@ -2031,6 +2035,23 @@ function renderSettings(app) {
                 autocomplete="off"
                 maxlength="100"
               />
+            </div>
+            <div class="trip-type-bulk-apply${hasCommonItems ? "" : " is-disabled"}">
+              <label class="trip-type-bulk-apply-label" for="input-apply-common-items">
+                <input
+                  type="checkbox"
+                  id="input-apply-common-items"
+                  aria-describedby="apply-common-items-hint"${hasCommonItems ? " checked" : " disabled"}
+                />
+                <span class="trip-type-bulk-apply-copy">
+                  <span class="trip-type-bulk-apply-title">將全部常用物品加入此類型</span>
+                  <span id="apply-common-items-hint" class="trip-type-bulk-apply-hint">${
+                    hasCommonItems
+                      ? `建立後仍可逐項刪除（目前共 ${commonItems.length} 項）`
+                      : "目前沒有常用物品可套用"
+                  }</span>
+                </span>
+              </label>
             </div>
             <button type="submit" class="btn-primary">
               ${icon("plus")}
@@ -2240,11 +2261,26 @@ function bindSettingsActions(app) {
         return;
       }
       errEl.classList.add("hidden");
+      const applyCommonItemsInput = document.getElementById(
+        "input-apply-common-items",
+      );
+      const commonItems = Array.isArray(state.commonItems)
+        ? state.commonItems
+        : [];
+      const typeId = genId();
+      const presetItems =
+        applyCommonItemsInput?.checked === true
+          ? commonItems.map((item) => ({
+              id: genId(),
+              name: item.name,
+              qty: 1,
+            }))
+          : [];
       state.tripTypes.push({
-        id: genId(),
+        id: typeId,
         name,
         createdAt: new Date().toISOString(),
-        presetItems: [],
+        presetItems,
       });
       saveState();
       input.value = "";
